@@ -54,6 +54,15 @@
                       
                       <v-list-item-subtitle>
                         <div class="markdown-content" v-html="formatMarkdown(message.contenu)"></div>
+                        <!-- Affichage des fichiers joints -->
+                        <div v-if="message.fichiers && message.fichiers.length > 0" class="message-attachments">
+                          <FileAttachment 
+                            v-for="fichier in message.fichiers" 
+                            :key="fichier.url" 
+                            :fichier="fichier" 
+                            class="mb-2"
+                          />
+                        </div>
                       </v-list-item-subtitle>
                     </v-list-item-content>
                   </v-list-item>
@@ -61,7 +70,12 @@
               </template>
             </v-card-text>
 
-            <v-card-actions>
+            <v-card-actions class="message-input-container">
+              <FileUploader 
+                :targetType="'canal'" 
+                :targetId="canalId" 
+                :onSuccess="onFileUploaded"
+              />
               <v-text-field
                 v-model="contenuMessage"
                 placeholder="Écrivez votre message..."
@@ -90,9 +104,15 @@ import socketService from '../services/socketService'
 import axios from 'axios'
 import * as marked from 'marked'
 import DOMPurify from 'dompurify'
+import FileUploader from '../components/FileUploader.vue'
+import FileAttachment from '../components/FileAttachment.vue'
 
 export default defineComponent({
   name: 'CanalView',
+  components: {
+    FileUploader,
+    FileAttachment
+  },
   
   setup() {
     const route = useRoute()
@@ -199,6 +219,16 @@ export default defineComponent({
       setTimeout(() => {
         currentPage.value++;
         loadingMore.value = false;
+      }, 500);
+    };
+
+    const onFileUploaded = (fichierInfo) => {
+      // Le fichier a été téléchargé avec succès, on rafraîchit les messages
+      console.log('Fichier uploadé:', fichierInfo?.nom || 'fichier');
+      loadMessages();
+      // Faites défiler jusqu'au bas pour voir le nouveau message avec le fichier
+      setTimeout(() => {
+        scrollToBottom();
       }, 500);
     };
 
@@ -331,7 +361,9 @@ export default defineComponent({
       formatDate,
       envoyerMessage,
       scrollToBottom,
-      formatMarkdown
+      formatMarkdown,
+      onFileUploaded,
+      canalId
     };
   }
 });
@@ -348,8 +380,20 @@ export default defineComponent({
   flex-direction: column;
 }
 
+.message-input-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .message-input {
-  width: 100%;
+  flex: 1;
+}
+
+.message-attachments {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
 }
 
 .reply-reference {

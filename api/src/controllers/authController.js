@@ -134,11 +134,11 @@ exports.connexion = async (req, res) => {
             });
         }
 
-        // Mettre à jour la dernière connexion et le statut
+        // Mettre à jour la dernière connexion sans changer le statut choisi par l'utilisateur
         utilisateur.lastLogin = Date.now();
         utilisateur.estConnecte = true;
         utilisateur.dernierActivite = Date.now();
-        utilisateur.status = 'en ligne';
+        // Ne pas réinitialiser le statut pour conserver le choix de l'utilisateur
         await utilisateur.save({ validateBeforeSave: false });
 
         console.log('Connexion réussie pour:', email);

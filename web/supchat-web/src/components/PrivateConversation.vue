@@ -62,6 +62,15 @@
               <!-- Contenu du message -->
               <div class="message-content">
                 <div class="markdown-content" v-html="formatMarkdown(message.contenu)"></div>
+                <!-- Fichiers joints -->
+                <div v-if="message.fichiers && message.fichiers.length > 0" class="message-attachments mt-2">
+                  <FileAttachment 
+                    v-for="fichier in message.fichiers" 
+                    :key="fichier.url" 
+                    :fichier="fichier" 
+                    class="mb-2"
+                  />
+                </div>
               </div>
               
               <!-- Boutons d'action pour tous les messages -->
@@ -112,25 +121,37 @@
         <div v-if="replyingTo" class="reply-bar">
           <div class="reply-info">
             <v-icon small class="mr-2">mdi-reply</v-icon>
-            <span>Réponse à {{ replyingTo.expediteur.username }}</span>
-            <div class="reply-preview-text">{{ replyingTo.contenu }}</div>
+            <div>
+              <span class="font-weight-medium">{{ replyingTo.expediteur.username }}</span>
+              <div class="reply-preview-text">{{ replyingTo.contenu }}</div>
+            </div>
           </div>
           <v-btn icon small @click="cancelReply">
             <v-icon>mdi-close</v-icon>
           </v-btn>
         </div>
-        
-        <v-textarea
-          v-model="messageContent"
-          rows="1"
-          auto-grow
-          hide-details
-          placeholder="Écrivez votre message... (Utilisez @ pour mentionner)"
-          class="message-input"
-          @keydown.enter.prevent="sendMessage"
-          @input="handleMessageInput"
-          ref="messageInputRef"
-        ></v-textarea>
+
+        <div class="input-container">
+          <FileUploader 
+            :targetType="'conversation'" 
+            :targetId="props.userId" 
+            :onSuccess="onFileUploaded"
+          />
+
+          <v-textarea
+            v-model="messageContent"
+            rows="1"
+            auto-grow
+            hide-details
+            placeholder="Votre message..."
+            filled
+            rounded
+            dense
+            class="message-input"
+            @keydown.enter.prevent="sendMessage"
+            @input="handleMessageInput"
+          ></v-textarea>
+        </div>
         
         <!-- Menu de suggestion pour les mentions d'utilisateurs -->
         <v-menu
@@ -313,17 +334,22 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUpdated, watch, nextTick } from 'vue';
-import { useStore } from 'vuex';
-// eslint-disable-next-line no-unused-vars
-import { useRoute } from 'vue-router';
+import { ref, computed, onMounted, onUpdated, nextTick, watch } from 'vue'
+import { useStore } from 'vuex'
+import { useRoute } from 'vue-router'
+import * as marked from 'marked'
+import DOMPurify from 'dompurify'
+import FileUploader from './FileUploader.vue'
+import FileAttachment from './FileAttachment.vue'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import * as marked from 'marked';
-import DOMPurify from 'dompurify';
 
 export default {
   name: 'PrivateConversation',
+  components: {
+    FileUploader,
+    FileAttachment
+  },
 
   
   props: {
@@ -344,6 +370,18 @@ export default {
     const route = useRoute();
     const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3000';
     
+    // Fonction pour gérer l'upload réussi d'un fichier
+    // eslint-disable-next-line no-unused-vars
+    const onFileUploaded = (fichierInfo) => {
+      console.log('Fichier uploadé avec succès:', fichierInfo?.nom || 'fichier');
+      // Actualiser les messages après l'upload pour afficher le nouveau message avec le fichier
+      store.dispatch('messagePrivate/fetchMessages', props.userId);
+      // Scroll vers le bas pour afficher le nouveau message
+      setTimeout(() => {
+        scrollToBottom();
+      }, 500);
+    };
+
     // Fonction pour convertir le Markdown en HTML sécurisé
     const formatMarkdown = (text) => {
       if (!text) return '';
@@ -1093,10 +1131,23 @@ export default {
   flex-direction: column;
 }
 
+.input-container {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+}
+
 .message-input {
   flex: 1;
   margin: 0 8px;
   padding: 8px;
+}
+
+.message-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .message-container {

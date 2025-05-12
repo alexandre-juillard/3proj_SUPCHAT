@@ -379,54 +379,7 @@ exports.modifierRoleMembre = catchAsync(async (req, res, next) => {
 });
 
 // Upload de fichiers
-exports.uploadFichier = catchAsync(async (req, res, next) => {
-    // Vérifier d'abord si l'utilisateur a accès au workspace
-    const workspace = await Workspace.findById(req.params.workspaceId);
-    if (!workspace) {
-        return next(new AppError('Workspace non trouvé', 404));
-    }
-
-    // Vérifier si l'utilisateur est membre du workspace
-    if (!workspace.estMembre(req.user.id)) {
-        return next(new AppError('Vous n\'avez pas accès à ce workspace', 403));
-    }
-
-    const canal = await Canal.findOne({
-        _id: req.params.id,
-        workspace: req.params.workspaceId
-    });
-
-    if (!canal) {
-        return next(new AppError('Canal non trouvé', 404));
-    }
-
-    // Vérifier si l'utilisateur est membre du canal
-    if (!canal.peutEcrire(req.user.id)) {
-        return next(new AppError('Vous n\'avez pas la permission d\'uploader des fichiers', 403));
-    }
-
-    if (!req.file) {
-        return next(new AppError('Aucun fichier fourni', 400));
-    }
-
-    // Ajouter le fichier à la liste des fichiers du canal
-    canal.fichiers.push({
-        nom: req.file.filename,
-        type: req.file.mimetype,
-        taille: req.file.size,
-        uploadedBy: req.user.id,
-        uploadedAt: Date.now()
-    });
-
-    await canal.save();
-
-    res.status(200).json({
-        status: 'success',
-        data: {
-            fichier: canal.fichiers[canal.fichiers.length - 1]
-        }
-    });
-});
+// Note: Les méthodes de gestion des fichiers ont été déplacées vers fichierController.js
 
 // Supprimer un membre
 exports.supprimerMembre = catchAsync(async (req, res, next) => {

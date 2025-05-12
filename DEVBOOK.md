@@ -123,7 +123,7 @@
 ### Messages API
 - [ ] Chat en temps réel
   - [x] Configuration WebSocket
-  - [ ] Messages privés
+  - [x] Messages privés
   - [x] Messages de groupe
   - [ ] Indicateurs de présence
 - [ ] Gestion des messages

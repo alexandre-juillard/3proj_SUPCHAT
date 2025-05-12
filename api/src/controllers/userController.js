@@ -202,28 +202,61 @@ const userController = {
           message: 'Aucune image fournie'
         });
       }
+      
+      // Vérifier que le type de fichier est autorisé
+      const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+      if (!allowedMimeTypes.includes(req.file.mimetype)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Format d\'image non autorisé. Utilisez JPG, JPEG, PNG, WEBP ou SVG.'
+        });
+      }
 
       const user = await User.findById(req.user.id);
 
+      // Générer un nom de fichier unique
+      const timestamp = Date.now();
+      const uniqueSuffix = require('crypto').randomBytes(8).toString('hex');
+      const fileExtension = path.extname(req.file.originalname);
+      const filename = `${timestamp}-${uniqueSuffix}${fileExtension}`;
+      
+      // Chemin de sauvegarde
+      const uploadDir = path.join(__dirname, '../../uploads/profiles');
+      const filePath = path.join(uploadDir, filename);
+      
+      // S'assurer que le répertoire existe
+      try {
+        await fs.mkdir(uploadDir, { recursive: true });
+      } catch (err) {
+        if (err.code !== 'EEXIST') throw err;
+      }
+      
       // Supprimer l'ancienne photo si elle existe et n'est pas la photo par défaut
       if (user.profilePicture !== 'default.jpg' && !user.profilePicture.startsWith('http')) {
-        const oldPicturePath = path.join('/uploads/profiles', user.profilePicture);
         try {
+          const oldPicturePath = path.join(__dirname, '../../uploads/profiles', user.profilePicture);
           await fs.unlink(oldPicturePath);
+          console.log('Ancienne photo supprimée:', oldPicturePath);
         } catch (error) {
           console.error('Erreur lors de la suppression de l\'ancienne photo:', error);
+          // Continuer même si la suppression échoue
         }
       }
 
+      // Écrire le fichier sur le disque
+      await fs.writeFile(filePath, req.file.buffer);
+      console.log('Nouvelle photo enregistrée:', filePath);
+      
       // Mettre à jour avec la nouvelle photo
-      user.profilePicture = req.file.filename;
+      user.profilePicture = filename;
       await user.save();
 
       res.json({
         success: true,
         message: 'Photo de profil mise à jour avec succès',
         data: {
-          profilePicture: user.profilePicture
+          profilePicture: filename,
+          profilePictureUrl: `/uploads/profiles/${filename}`
         }
       });
     } catch (error) {

@@ -77,9 +77,9 @@ const userSchema = new mongoose.Schema({
         // Accepter les URLs pour les photos de profil OAuth
         if (value.startsWith('http://') || value.startsWith('https://')) return true;
         // Pour les fichiers uploadés, vérifier l'extension
-        return /\.(jpg|jpeg|png)$/i.test(value);
+        return /\.(jpg|jpeg|png|webp|svg)$/i.test(value);
       },
-      message: "Le format de l'image n'est pas valide (jpg, jpeg, png uniquement)"
+      message: "Le format de l'image n'est pas valide (jpg, jpeg, png, webp, svg uniquement)"
     }
   },
   role: {

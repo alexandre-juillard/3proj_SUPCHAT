@@ -36,18 +36,18 @@ const generalFileFilter = (req, file, cb) => {
   return cb(null, true);
 };
 
-// Filtre spécifique pour les photos de profil (uniquement JPG et PNG)
+// Filtre spécifique pour les photos de profil (JPG, JPEG, PNG, WEBP et SVG)
 const profileImageFilter = (req, file, cb) => {
   console.log(`Photo de profil reçue: ${file.originalname}, type déclaré: ${file.mimetype}`);
   
   // Vérification basique du type MIME déclaré (la vérification complète sera faite dans le contrôleur)
-  const allowedMimeTypes = ['image/jpeg', 'image/png'];
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
   
   if (allowedMimeTypes.includes(file.mimetype)) {
     return cb(null, true);
   }
   
-  return cb(new AppError('Seules les images JPG et PNG sont acceptées pour les photos de profil.', 400), false);
+  return cb(new AppError('Seules les images JPG, JPEG, PNG, WEBP et SVG sont acceptées pour les photos de profil.', 400), false);
 };
 
 // Configuration pour les fichiers généraux (messages, canaux, etc.)

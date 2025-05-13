@@ -104,7 +104,17 @@ const actions = {
     }
   },
 
-
+  // Rechercher des workspaces publics
+  async searchPublicWorkspaces(_, searchQuery = '') {
+    try {
+      const response = await api.get(`/workspaces/recherche/public${searchQuery ? `?query=${searchQuery}` : ''}`)
+      console.log('Résultats de recherche de workspaces publics:', response.data)
+      return response.data.data.workspaces
+    } catch (error) {
+      console.error('Erreur lors de la recherche de workspaces publics:', error)
+      throw error
+    }
+  }
 }
 
 const getters = {

@@ -215,6 +215,106 @@ const actions = {
         }
       });
       
+      // Déboguer la structure des messages reçus
+      console.log('Messages reçus de l\'API:', response.data.data.messages);
+      if (response.data.data.messages.length > 0) {
+        console.log('Structure d\'un message:', response.data.data.messages[0]);
+        console.log('Fichiers attachés:', response.data.data.messages[0].fichiers);
+      }
+      
+      // Ajouter un mode de débogage global pour l'application
+      window.$DEBUG_MODE = true;
+      
+      // Log pour déboguer la structure des messages
+      console.log('Messages reçus:', response.data.data.messages);
+      
+      // Vérifier si les messages ont des fichiers
+      let hasFiles = false;
+      response.data.data.messages.forEach(msg => {
+        if (msg.fichiers && msg.fichiers.length > 0) {
+          hasFiles = true;
+          console.log(`Message ${msg._id} contient ${msg.fichiers.length} fichiers:`, msg.fichiers);
+        }
+      });
+      
+      if (!hasFiles) {
+        console.log('Aucun message ne contient de fichiers, vérification directe dans la base de données...');
+        
+        try {
+          // Faire une requête directe pour récupérer les messages avec fichiers
+          const filesResponse = await axios.get(`${API_URL}/api/v1/messages/private/files/${conversationId}`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+          
+          console.log('Réponse de la requête de fichiers:', filesResponse.data);
+          
+          // Si nous avons des messages avec fichiers, les ajouter à notre liste
+          if (filesResponse.data.success && filesResponse.data.data && filesResponse.data.data.messages) {
+            const messagesWithFiles = filesResponse.data.data.messages;
+            console.log('Messages avec fichiers trouvés:', messagesWithFiles.length);
+            
+            // Créer un ensemble des IDs de messages déjà présents
+            const existingIds = new Set(response.data.data.messages.map(msg => msg._id));
+            
+            // Ajouter les messages avec fichiers qui ne sont pas déjà dans notre liste
+            messagesWithFiles.forEach(msg => {
+              if (!existingIds.has(msg._id)) {
+                response.data.data.messages.push(msg);
+                console.log(`Ajout du message ${msg._id} avec ${msg.fichiers ? msg.fichiers.length : 0} fichiers`); 
+              } else {
+                // Mettre à jour les fichiers du message existant
+                const existingMsg = response.data.data.messages.find(m => m._id === msg._id);
+                if (msg.fichiers && msg.fichiers.length > 0) {
+                  existingMsg.fichiers = msg.fichiers;
+                  console.log(`Mise à jour des fichiers pour le message ${msg._id}:`, msg.fichiers);
+                }
+              }
+            });
+            
+            // Trier les messages par date
+            response.data.data.messages.sort((a, b) => new Date(a.horodatage) - new Date(b.horodatage));
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération des messages avec fichiers:', error);
+          
+          // Si l'endpoint spécifique n'existe pas, essayer l'API de fichiers générale
+          try {
+            const fichierResponse = await axios.get(`${API_URL}/api/v1/fichiers/conversation/${conversationId}`, {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+              }
+            });
+            
+            console.log('Fichiers de la conversation:', fichierResponse.data);
+            
+            if (fichierResponse.data.success && fichierResponse.data.data && fichierResponse.data.data.fichiers) {
+              const fichiers = fichierResponse.data.data.fichiers;
+              console.log('Fichiers trouvés:', fichiers.length);
+              
+              // Créer un dictionnaire des messages par ID
+              const messagesMap = {};
+              response.data.data.messages.forEach(msg => {
+                messagesMap[msg._id] = msg;
+                if (!msg.fichiers) {
+                  msg.fichiers = [];
+                }
+              });
+              
+              // Traiter les fichiers
+              fichiers.forEach(fichier => {
+                if (fichier.messageId && messagesMap[fichier.messageId]) {
+                  messagesMap[fichier.messageId].fichiers.push(fichier);
+                }
+              });
+            }
+          } catch (fichierError) {
+            console.error('Erreur lors de la récupération des fichiers:', fichierError);
+          }
+        }
+      }
+      
       // Stocker l'ID de la conversation pour une utilisation ultérieure
       localStorage.setItem('currentConversationId', conversationId);
       

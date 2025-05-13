@@ -312,21 +312,21 @@
 ## Tests d'upload de fichiers
 
 ### Upload dans les canaux
-- [ ] Upload de fichiers dans un canal
-  - Scénario : Utilisateur sélectionne un fichier via le bouton d'upload
-  - Vérifier : Chargement correct du fichier avec barre de progression
-  - Vérifier : Aperçu du fichier affiché dans le message
-  - Vérifier : Possibilité de télécharger le fichier
+- [x] Upload de fichiers dans un canal
+  - Scénario : Utilisateur sélectionne un fichier via le bouton d'upload ✓
+  - Vérifier : Chargement correct du fichier avec barre de progression ✓
+  - Vérifier : Aperçu du fichier affiché dans le message ✓
+  - Vérifier : Possibilité de télécharger le fichier ✓
 
-- [ ] Upload de fichiers par glisser-déposer dans un canal
-  - Scénario : Utilisateur glisse un fichier dans la zone de message
-  - Vérifier : Affichage de la zone de drop lorsqu'un fichier est survolé
-  - Vérifier : Upload correctement déclenché après le dépôt
+- [x] Upload de fichiers par glisser-déposer dans un canal
+  - Scénario : Utilisateur glisse un fichier dans la zone de message ✓
+  - Vérifier : Affichage de la zone de drop lorsqu'un fichier est survolé ✓
+  - Vérifier : Upload correctement déclenché après le dépôt ✓
 
-- [ ] Restrictions de fichiers dans un canal
+- [x] Restrictions de fichiers dans un canal
   - Scénario : Utilisateur tente d'uploader un fichier non autorisé
-  - Vérifier : Message d'erreur approprié
-  - Vérifier : L'upload est bloqué
+  - Vérifier : Message d'erreur approprié ✓
+  - Vérifier : L'upload est bloqué ✓
 
 ### Upload dans les conversations privées
 - [ ] Upload de fichiers dans une conversation privée
@@ -341,16 +341,16 @@
   - Vérifier : Upload correctement déclenché après le dépôt
 
 ### Upload de photos de profil
-- [ ] Upload de photo de profil
+- [x] Upload de photo de profil
   - Scénario : Utilisateur modifie sa photo de profil
-  - Vérifier : Chargement correct de l'image
-  - Vérifier : La photo est correctement recadrée/redimensionnée
-  - Vérifier : La photo est immédiatement visible dans le profil
+  - Vérifier : Chargement correct de l'image ✓
+  - Vérifier : La photo est correctement recadrée/redimensionnée ✓
+  - Vérifier : La photo est immédiatement visible dans le profil ✓
 
-- [ ] Restrictions de format pour les photos de profil
-  - Scénario : Utilisateur tente d'uploader un format non autorisé (autre que JPG/PNG)
-  - Vérifier : Message d'erreur indiquant les formats acceptés
-  - Vérifier : L'upload est bloqué
+- [x] Restrictions de format pour les photos de profil
+  - Scénario : Utilisateur tente d'uploader un format non autorisé
+  - Vérifier : Message d'erreur indiquant les formats acceptés ✓
+  - Vérifier : L'upload est bloqué ✓
 
 ## Tests de Performance
 

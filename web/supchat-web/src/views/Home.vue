@@ -18,22 +18,76 @@
           <v-col cols="12" sm="3">
             <v-card>
               <v-toolbar color="primary" dark>
-                <v-toolbar-title>Workspaces</v-toolbar-title>
+                <v-toolbar-title>Mes Workspaces</v-toolbar-title>
                 <v-spacer></v-spacer>
-                <v-btn icon @click="showCreateWorkspaceDialog = true">
+                <v-btn icon @click="showCreateWorkspaceDialog = true" title="Créer un workspace">
                   <v-icon>mdi-plus</v-icon>
                 </v-btn>
               </v-toolbar>
-              <v-list>
-                <v-list-item
-                  v-for="workspace in workspaces"
-                  :key="workspace._id"
-                  :to="'/workspace/' + workspace._id"
-                  :class="{ 'primary--text': workspace._id === currentWorkspaceId }"
-                >
-                  <v-list-item-title>{{ workspace.nom }}</v-list-item-title>
-                </v-list-item>
-              </v-list>
+              
+              <!-- Barre de recherche pour les workspaces publics -->
+              <v-card-text class="pa-2">
+                <v-text-field
+                  v-model="searchQuery"
+                  label="Rechercher des workspaces publics"
+                  prepend-inner-icon="mdi-magnify"
+                  clearable
+                  hide-details
+                  dense
+                  outlined
+                  @keyup.enter="searchPublicWorkspaces"
+                  @click:clear="clearSearch"
+                ></v-text-field>
+              </v-card-text>
+              
+              <!-- Résultats de recherche (si recherche active) -->
+              <div v-if="isSearchActive">
+                <v-toolbar dense>
+                  <v-toolbar-title class="text-subtitle-2">Résultats de recherche</v-toolbar-title>
+                  <v-spacer></v-spacer>
+                  <v-btn icon small @click="clearSearch" title="Fermer la recherche">
+                    <v-icon small>mdi-close</v-icon>
+                  </v-btn>
+                </v-toolbar>
+                
+                <v-list v-if="searchResults.length > 0">
+                  <v-list-item
+                    v-for="workspace in searchResults"
+                    :key="workspace._id"
+                    :to="'/workspace/' + workspace._id"
+                    :class="{ 'primary--text': workspace._id === currentWorkspaceId }"
+                  >
+                    <v-list-item-content>
+                      <v-list-item-title>{{ workspace.nom || 'Sans nom' }}</v-list-item-title>
+                      <v-list-item-subtitle v-if="workspace.description" class="text-truncate">
+                        {{ workspace.description }}
+                      </v-list-item-subtitle>
+                    </v-list-item-content>
+                  </v-list-item>
+                </v-list>
+                
+                <v-card-text v-else class="text-center pa-3">
+                  <p class="text-body-2 mb-0">Aucun workspace public trouvé</p>
+                </v-card-text>
+              </div>
+              
+              <!-- Liste des workspaces dont je suis membre (si pas de recherche active) -->
+              <div v-else>
+                <v-subheader>Mes workspaces</v-subheader>
+                <v-list v-if="workspaces && workspaces.length > 0">
+                  <v-list-item
+                    v-for="workspace in workspaces"
+                    :key="workspace._id"
+                    :to="'/workspace/' + workspace._id"
+                    :class="{ 'primary--text': workspace._id === currentWorkspaceId }"
+                  >
+                    <v-list-item-title>{{ workspace.nom || 'Sans nom' }}</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+                <v-card-text v-else class="text-center pa-3">
+                  <p class="text-body-2 mb-0">Vous n'êtes membre d'aucun workspace</p>
+                </v-card-text>
+              </div>
             </v-card>
           </v-col>
 
@@ -129,6 +183,12 @@ export default defineComponent({
       text: '',
       color: 'success'
     })
+    
+    // État pour la recherche
+    const searchQuery = ref('')
+    const searchResults = ref([])
+    const isSearching = ref(false)
+    const isSearchActive = computed(() => searchResults.value.length > 0 || isSearching.value)
 
     // Règles de validation
     const nameRules = [
@@ -137,7 +197,11 @@ export default defineComponent({
     ]
 
     // Computed properties
-    const workspaces = computed(() => store.state.workspace.workspaces)
+    const workspaces = computed(() => {
+      // Vérification de sécurité pour éviter les erreurs de nullité
+      return store.state.workspace?.workspaces || []
+    })
+    
     const currentWorkspaceId = computed(() => {
       const workspaceId = route.params.id
       return workspaceId !== 'undefined' ? workspaceId : null
@@ -145,7 +209,7 @@ export default defineComponent({
 
     // Méthodes
     const createWorkspace = async () => {
-      if (!form.value.validate()) return
+      if (!form.value || !form.value.validate()) return
 
       try {
         await store.dispatch('workspace/createWorkspace', newWorkspace.value)
@@ -155,7 +219,7 @@ export default defineComponent({
           text: 'Workspace créé avec succès',
           color: 'success'
         }
-        form.value.reset()
+        if (form.value) form.value.reset()
       } catch (error) {
         snackbar.value = {
           show: true,
@@ -163,6 +227,47 @@ export default defineComponent({
           color: 'error'
         }
       }
+    }
+
+    // Rechercher des workspaces publics
+    const searchPublicWorkspaces = async () => {
+      if (!searchQuery.value.trim()) {
+        clearSearch()
+        return
+      }
+      
+      isSearching.value = true
+      searchResults.value = []
+      
+      try {
+        const results = await store.dispatch('workspace/searchPublicWorkspaces', searchQuery.value.trim())
+        searchResults.value = Array.isArray(results) ? results : []
+        isSearching.value = false
+        
+        if (searchResults.value.length === 0) {
+          snackbar.value = {
+            show: true,
+            text: 'Aucun workspace public trouvé pour cette recherche',
+            color: 'info'
+          }
+        }
+      } catch (error) {
+        console.error('Erreur lors de la recherche:', error)
+        searchResults.value = []
+        isSearching.value = false
+        snackbar.value = {
+          show: true,
+          text: 'Erreur lors de la recherche de workspaces publics',
+          color: 'error'
+        }
+      }
+    }
+    
+    // Effacer les résultats de recherche
+    const clearSearch = () => {
+      searchQuery.value = ''
+      searchResults.value = []
+      isSearching.value = false
     }
 
     const handleLogout = async () => {
@@ -197,6 +302,14 @@ export default defineComponent({
       workspaces,
       currentWorkspaceId,
       form,
+      // Nouvelles variables et méthodes pour la recherche
+      searchQuery,
+      searchResults,
+      isSearchActive,
+      isSearching,
+      searchPublicWorkspaces,
+      clearSearch,
+      // Méthodes existantes
       createWorkspace,
       handleLogout
     }

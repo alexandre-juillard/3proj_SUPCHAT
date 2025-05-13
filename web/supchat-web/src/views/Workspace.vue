@@ -227,7 +227,7 @@
             <v-text-field
               v-model="inviteEmail"
               label="Email"
-              :rules="[rules.required, rules.email]"
+              :rules="emailRules"
               required
               :loading="inviteLoading"
               :disabled="inviteLoading"
@@ -241,7 +241,7 @@
           <v-spacer></v-spacer>
           <v-btn
             color="primary"
-            @click="inviteUser"
+            @click="handleInvitation"
             :loading="inviteLoading"
             :disabled="!validInvite || inviteLoading"
           >
@@ -362,7 +362,8 @@ export default {
         visibilite: 'public'
       },
       showInviteUser: false,
-      invitationEmail: '',
+      inviteEmail: '',
+      validInvite: false,
       emailRules: [
         v => !!v || 'L\'email est requis',
         v => /.+@.+\..+/.test(v) || 'L\'email doit être valide'
@@ -430,16 +431,16 @@ export default {
 
       this.inviteLoading = true
       try {
-        await this.envoyerInvitation({
+        await this.$store.dispatch('workspace/inviteUser', {
           workspaceId: this.workspace._id,
-          email: this.invitationEmail
+          email: this.inviteEmail
         })
 
         this.snackbar.text = 'Invitation envoyée avec succès'
         this.snackbar.color = 'success'
         this.snackbar.show = true
         this.showInviteUser = false
-        this.invitationEmail = ''
+        this.inviteEmail = ''
       } catch (error) {
         console.error('Erreur lors de l\'envoi de l\'invitation:', error)
         this.snackbar.text = error.response?.data?.message || 'Erreur lors de l\'envoi de l\'invitation'
@@ -522,6 +523,7 @@ export default {
     closeInviteDialog() {
       this.showInviteUser = false
       this.inviteEmail = ''
+      this.inviteLoading = false
       if (this.$refs.inviteForm) {
         this.$refs.inviteForm.reset()
       }

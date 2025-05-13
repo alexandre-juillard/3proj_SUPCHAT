@@ -98,11 +98,10 @@
       <v-card-actions class="conversation-footer">
         <div v-if="replyingTo" class="reply-bar">
           <div class="reply-info">
-            <v-icon small class="mr-2">mdi-reply</v-icon>
-            <span>Réponse à {{ replyingTo.expediteur.username }}</span>
+            <div class="text-caption">Réponse à {{ replyingTo.expediteur.username }}</div>
             <div class="reply-preview-text">{{ replyingTo.contenu }}</div>
           </div>
-          <v-btn icon small @click="cancelReply">
+          <v-btn icon size="small" @click="cancelReply">
             <v-icon>mdi-close</v-icon>
           </v-btn>
         </div>
@@ -112,10 +111,20 @@
           rows="1"
           auto-grow
           hide-details
+          density="compact"
+          variant="outlined"
           placeholder="Écrivez votre message..."
           class="message-input"
           @keydown.enter.prevent="sendMessage"
         ></v-textarea>
+        
+        <!-- Ajout du composant FileUploader -->
+        <FileUploader 
+          v-if="conversation && conversation._id"
+          targetType="conversation"
+          :targetId="conversation._id"
+          :onSuccess="handleFileUploadSuccess"
+        />
         
         <v-btn icon @click="sendMessage" :disabled="!messageContent.trim()" :loading="sending">
           <v-icon>mdi-send</v-icon>
@@ -365,14 +374,18 @@
 </template>
 
 <script>
+import axios from 'axios';
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useStore } from 'vuex';
+import FileUploader from './FileUploader.vue';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import axios from 'axios';
 
 export default {
   name: 'ConversationGroup',
+  components: {
+    FileUploader
+  },
   
   props: {
     conversationId: {
@@ -531,9 +544,9 @@ export default {
         messages.value = response.data.data.messages;
         
         // Faire défiler jusqu'au dernier message
-        nextTick(() => {
+        setTimeout(() => {
           scrollToBottom();
-        });
+        }, 100);
       } catch (error) {
         console.error('Erreur lors du chargement des messages:', error);
       }
@@ -987,6 +1000,17 @@ export default {
       }
     };
     
+    // Gérer le succès de l'upload de fichier
+    const handleFileUploadSuccess = async (fileData) => {
+      console.log('Fichier téléchargé avec succès:', fileData);
+      // Recharger les messages pour afficher le nouveau fichier
+      await loadMessages();
+      // Faire défiler vers le bas pour voir le nouveau message
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    };
+    
     // Charger la conversation au montage du composant
     onMounted(() => {
       loadConversation();
@@ -1039,7 +1063,8 @@ export default {
       addUsersToConversation,
       confirmLeaveConversation,
       leaveConversation,
-      customFilter
+      customFilter,
+      handleFileUploadSuccess
     };
   }
 };

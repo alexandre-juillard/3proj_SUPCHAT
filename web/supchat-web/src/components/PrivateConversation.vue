@@ -61,15 +61,25 @@
               
               <!-- Contenu du message -->
               <div class="message-content">
-                <div class="markdown-content" v-html="formatMarkdown(message.contenu)"></div>
-                <!-- Fichiers joints -->
+                <!-- Afficher le contenu du message s'il n'est pas vide -->
+                <div v-if="message.contenu && message.contenu.trim() !== ''" class="markdown-content" v-html="formatMarkdown(message.contenu)"></div>
+                
+                <!-- Fichiers joints - assurons-nous qu'ils s'affichent même avec contenu vide -->
                 <div v-if="message.fichiers && message.fichiers.length > 0" class="message-attachments mt-2">
                   <FileAttachment 
                     v-for="fichier in message.fichiers" 
-                    :key="fichier.url" 
+                    :key="fichier.url || fichier._id" 
                     :fichier="fichier" 
                     class="mb-2"
                   />
+                </div>
+                
+                <!-- Débogage des fichiers (temporaire) -->
+                <div v-if="$DEBUG_MODE" class="debug-info">
+                  <div class="alert alert-info mb-2">Debug: Message ID: {{ message._id }}</div>
+                  <div class="alert alert-info mb-2">Debug: Contenu: {{ message.contenu ? message.contenu : 'Contenu vide' }}</div>
+                  <div class="alert alert-info mb-2">Debug: Fichiers: {{ message.fichiers ? message.fichiers.length : 0 }} fichier(s)</div>
+                  <pre>{{ JSON.stringify(message.fichiers, null, 2) }}</pre>
                 </div>
               </div>
               
@@ -132,11 +142,14 @@
         </div>
 
         <div class="input-container">
-          <FileUploader 
-            :targetType="'conversation'" 
-            :targetId="props.userId" 
-            :onSuccess="onFileUploaded"
-          />
+          <!-- Composant FileUploader avec vérification de sécurité -->
+          <template v-if="currentUserId">
+            <FileUploader 
+              :targetType="'conversation'" 
+              :targetId="currentUserId" 
+              :onSuccess="onFileUploaded"
+            />
+          </template>
 
           <v-textarea
             v-model="messageContent"
@@ -370,17 +383,13 @@ export default {
     const route = useRoute();
     const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3000';
     
-    // Fonction pour gérer l'upload réussi d'un fichier
-    // eslint-disable-next-line no-unused-vars
-    const onFileUploaded = (fichierInfo) => {
-      console.log('Fichier uploadé avec succès:', fichierInfo?.nom || 'fichier');
-      // Actualiser les messages après l'upload pour afficher le nouveau message avec le fichier
-      store.dispatch('messagePrivate/fetchMessages', props.userId);
-      // Scroll vers le bas pour afficher le nouveau message
-      setTimeout(() => {
-        scrollToBottom();
-      }, 500);
-    };
+    // Exposer userId comme une variable réactive pour le template
+    const userId = computed(() => props.userId);
+    
+    // Variable sécurisée pour le template
+    const currentUserId = computed(() => props.userId || null);
+    
+    // La fonction onFileUploaded est définie plus bas dans le code
 
     // Fonction pour convertir le Markdown en HTML sécurisé
     const formatMarkdown = (text) => {
@@ -496,9 +505,16 @@ export default {
     // Charger les messages au montage du composant
     onMounted(async () => {
       loading.value = true;
-      // Charger les détails de l'utilisateur
+      
+      // Vérifier si userId est défini
+      if (!userId.value) {
+        console.warn('userId non défini, impossible de charger les messages');
+        loading.value = false;
+        return;
+      }
+      
       await loadUserDetails();
-      await store.dispatch('messagePrivate/fetchMessages', props.userId);
+      await store.dispatch('messagePrivate/fetchMessages', userId.value);
       loading.value = false;
       scrollToBottom();
       
@@ -507,7 +523,7 @@ export default {
     });
     
     // Surveiller les changements d'utilisateur pour recharger les messages
-    watch(() => props.userId, async (newUserId) => {
+    watch(userId, async (newUserId) => {
       if (newUserId) {
         loading.value = true;
         await store.dispatch('messagePrivate/fetchMessages', newUserId);
@@ -544,6 +560,33 @@ export default {
       
       for (const message of unreadMessages) {
         await store.dispatch('messagePrivate/markMessageAsRead', message._id);
+      }
+    };
+    
+    // Fonction pour gérer l'upload réussi d'un fichier
+    const onFileUploaded = async (fileData) => {
+      try {
+        console.log('Fichier téléchargé avec succès:', fileData);
+        
+        // Vérifier si userId est défini
+        if (!userId.value) {
+          console.warn('userId non défini, impossible de mettre à jour les messages');
+          return;
+        }
+        
+        // Si un message a été créé avec le fichier, l'ajouter à la liste des messages
+        if (fileData && fileData.message) {
+          // Mettre à jour la liste des messages
+          await store.dispatch('messagePrivate/fetchMessages', userId.value);
+          
+          // Mettre à jour la liste des conversations
+          await store.dispatch('messagePrivate/updateConversationList');
+          
+          // Faire défiler vers le bas pour voir le nouveau message
+          scrollToBottom();
+        }
+      } catch (error) {
+        console.error('Erreur lors du traitement du fichier téléchargé:', error);
       }
     };
     
@@ -1046,10 +1089,12 @@ export default {
     };
     
     return {
+      // Variables d'état
+      messages,
       messagesContainer,
       messageContent,
       loading,
-      messages,
+      currentUserId,
       currentUser,
       otherUser,
       replyingTo,
@@ -1073,6 +1118,9 @@ export default {
       showDeleteDialog,
       confirmDeleteMessage,
       formatMarkdown,
+      
+      // Fonction pour gérer les fichiers téléchargés
+      onFileUploaded,
       
       // Variables et fonctions pour l'ajout d'utilisateurs
       showAddUserDialog,

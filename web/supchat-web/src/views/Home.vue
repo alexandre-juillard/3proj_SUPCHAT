@@ -3,6 +3,10 @@
     <v-app-bar app color="primary" dark>
       <v-toolbar-title>SupChat</v-toolbar-title>
       <v-spacer></v-spacer>
+      
+      <!-- Barre de recherche globale -->
+      <search-bar class="mx-4"></search-bar>
+      
       <v-btn icon to="/profile" title="Profil">
         <v-icon>mdi-account</v-icon>
       </v-btn>
@@ -161,9 +165,13 @@
 import { defineComponent, ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
+import SearchBar from '@/components/SearchBar.vue'
 
 export default defineComponent({
   name: 'HomePage',
+  components: {
+    SearchBar
+  },
 
   setup() {
     const store = useStore()

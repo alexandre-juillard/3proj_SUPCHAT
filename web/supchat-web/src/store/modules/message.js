@@ -86,12 +86,30 @@ const actions = {
   async reactToMessage({ commit }, { workspaceId, canalId, messageId, emoji }) {
     try {
       console.log(`Réaction au message ${messageId} avec emoji:`, emoji);
+      // Corriger l'URL pour qu'elle corresponde aux routes du backend
       const response = await api.post(`/workspaces/${workspaceId}/canaux/${canalId}/messages/${messageId}/reactions`, { emoji })
       console.log('Réponse de réaction:', response.data);
       // La mise à jour du message se fera via WebSocket
       return response.data
     } catch (error) {
       console.error('Erreur lors de la réaction au message:', error)
+      commit('SET_ERROR', error.message)
+      throw error
+    }
+  },
+
+  async replyToMessage({ commit }, { workspaceId, canalId, messageData }) {
+    try {
+      console.log('Réponse au message avec ID:', messageData.reponseA);
+      // Utiliser la route spécifique pour répondre à un message
+      const messageId = messageData.reponseA;
+      const contenu = messageData.contenu;
+      
+      const response = await api.post(`/workspaces/${workspaceId}/canaux/${canalId}/messages/${messageId}/reponses`, { contenu })
+      commit('ADD_MESSAGE', response.data.data.message)
+      return response.data.data.message
+    } catch (error) {
+      console.error('Erreur lors de la réponse au message:', error)
       commit('SET_ERROR', error.message)
       throw error
     }

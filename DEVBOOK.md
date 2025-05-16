@@ -126,9 +126,9 @@
   - [x] Messages privés
   - [x] Messages de groupe
   - [ ] Indicateurs de présence
-- [ ] Gestion des messages
+- [x] Gestion des messages
   - [x] CRUD des messages
-  - [ ] Formatage markdown
+  - [-] Formatage markdown (retiré, a faire en frontend)
   - [x] Mentions (@user)
   - [x] Réactions aux messages
   - [x] Réponses aux messages

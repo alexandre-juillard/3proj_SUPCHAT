@@ -34,6 +34,18 @@
                   </div>
                   
                   <v-list-item v-for="message in visibleMessages" :key="message._id">
+                    <v-list-item-avatar>
+                      <v-avatar size="40" color="primary" v-if="!message.auteur || !message.auteur.profilePicture">
+                        <span class="white--text">{{ getDefaultAvatar(message.auteur ? message.auteur.username : '') }}</span>
+                      </v-avatar>
+                      <v-avatar size="40" v-else>
+                        <v-img 
+                          :src="message.auteur.profilePicture" 
+                          :alt="message.auteur.username"
+                        >
+                        </v-img>
+                      </v-avatar>
+                    </v-list-item-avatar>
                     <v-list-item-content>
                       <v-list-item-title class="d-flex align-center">
                         <span class="font-weight-bold">{{ message.auteur ? message.auteur.username : 'Utilisateur' }}</span>
@@ -53,7 +65,7 @@
                       </div>
                       
                       <v-list-item-subtitle>
-                        <div class="markdown-content" v-html="formatMarkdown(message.contenu)"></div>
+                        <div class="message-content">{{ message.contenu }}</div>
                         <!-- Affichage des fichiers joints -->
                         <div v-if="message.fichiers && message.fichiers.length > 0" class="message-attachments">
                           <FileAttachment 
@@ -62,6 +74,23 @@
                             :fichier="fichier" 
                             class="mb-2"
                           />
+                        </div>
+                        <!-- Boutons d'action sur les messages -->
+                        <div class="message-actions mt-1">
+                          <v-btn icon x-small @click="replyToMessage(message)" title="Répondre">
+                            <v-icon small>mdi-reply</v-icon>
+                          </v-btn>
+                          <v-btn icon x-small @click="reactToMessage(message)" title="Réagir">
+                            <v-icon small>mdi-emoticon-outline</v-icon>
+                          </v-btn>
+                          <template v-if="user && message.auteur && user._id === message.auteur._id">
+                            <v-btn icon x-small @click="editMessage(message)" title="Modifier">
+                              <v-icon small>mdi-pencil</v-icon>
+                            </v-btn>
+                            <v-btn icon x-small @click="deleteMessage(message)" title="Supprimer">
+                              <v-icon small>mdi-delete</v-icon>
+                            </v-btn>
+                          </template>
                         </div>
                       </v-list-item-subtitle>
                     </v-list-item-content>
@@ -93,6 +122,93 @@
       </v-row>
     </v-container>
   </div>
+
+  <!-- Dialogue pour répondre à un message -->
+  <v-dialog v-model="showReplyDialog" max-width="500px">
+    <v-card>
+      <v-card-title>Répondre au message</v-card-title>
+      <v-card-text>
+        <div v-if="selectedMessage" class="reply-reference mb-3 pa-2">
+          <div class="d-flex align-center">
+            <span class="text-subtitle-2">{{ selectedMessage.auteur ? selectedMessage.auteur.username : 'Utilisateur' }}</span>
+          </div>
+          <div class="text-caption grey--text text--darken-1">{{ selectedMessage.contenu }}</div>
+        </div>
+        <v-text-field
+          v-model="contenuMessage"
+          label="Votre réponse"
+          outlined
+          autofocus
+          hide-details
+        ></v-text-field>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn text @click="showReplyDialog = false">Annuler</v-btn>
+        <v-btn color="primary" @click="confirmReply">Répondre</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Dialogue pour réagir à un message -->
+  <v-dialog v-model="showReactDialog" max-width="500px">
+    <v-card>
+      <v-card-title>Réagir au message</v-card-title>
+      <v-card-text>
+        <div v-if="selectedMessage" class="mb-3">
+          <div class="text-caption grey--text text--darken-1">{{ selectedMessage.contenu }}</div>
+        </div>
+        <div class="d-flex flex-wrap justify-space-around">
+          <v-btn text class="emoji-btn" @click="sendReaction('👍')">👍</v-btn>
+          <v-btn text class="emoji-btn" @click="sendReaction('❤️')">❤️</v-btn>
+          <v-btn text class="emoji-btn" @click="sendReaction('😂')">😂</v-btn>
+          <v-btn text class="emoji-btn" @click="sendReaction('😮')">😮</v-btn>
+          <v-btn text class="emoji-btn" @click="sendReaction('😢')">😢</v-btn>
+          <v-btn text class="emoji-btn" @click="sendReaction('🔥')">🔥</v-btn>
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn text @click="showReactDialog = false">Fermer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Dialogue pour modifier un message -->
+  <v-dialog v-model="showEditDialog" max-width="500px">
+    <v-card>
+      <v-card-title>Modifier le message</v-card-title>
+      <v-card-text>
+        <v-text-field
+          v-model="editContent"
+          label="Message"
+          outlined
+          autofocus
+          hide-details
+        ></v-text-field>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn text @click="showEditDialog = false">Annuler</v-btn>
+        <v-btn color="primary" @click="confirmEdit">Enregistrer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Dialogue de confirmation pour supprimer un message -->
+  <v-dialog v-model="showDeleteDialog" max-width="500px">
+    <v-card>
+      <v-card-title class="headline">Supprimer le message</v-card-title>
+      <v-card-text>
+        Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible.
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn text @click="showDeleteDialog = false">Annuler</v-btn>
+        <v-btn color="error" @click="confirmDelete">Supprimer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script>
@@ -100,10 +216,6 @@ import { defineComponent, ref, computed, watch, onMounted, onUnmounted } from 'v
 import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
 import socketService from '../services/socketService'
-// eslint-disable-next-line no-unused-vars
-import axios from 'axios'
-import * as marked from 'marked'
-import DOMPurify from 'dompurify'
 import FileUploader from '../components/FileUploader.vue'
 import FileAttachment from '../components/FileAttachment.vue'
 
@@ -117,41 +229,17 @@ export default defineComponent({
   setup() {
     const route = useRoute()
     const store = useStore()
-    
-    // Fonction pour convertir le Markdown en HTML sécurisé
-    const formatMarkdown = (text) => {
-      if (!text) return ''
-      
-      try {
-        // Configuration de marked
-        const options = {
-          gfm: true, // GitHub Flavored Markdown
-          breaks: true, // Convertir les retours à la ligne en <br>
-          pedantic: false, // Ne pas suivre les spécifications strictes
-          headerIds: false, // Pas d'IDs pour les titres
-          mangle: false, // Ne pas masquer les emails
-          sanitize: false, // Nous utilisons DOMPurify pour la sanitisation
-          silent: true // Ne pas lancer d'erreur en cas de problème
-        }
-        
-        // Prétraitement du texte pour s'assurer que les listes sont correctement formatées
-        // Ajouter un espace après les marqueurs de liste si nécessaire
-        let processedText = text.replace(/^([-*+])(\S)/gm, '$1 $2');
-        // Ajouter un espace après les numéros de liste si nécessaire
-        processedText = processedText.replace(/^(\d+\.)(\S)/gm, '$1 $2');
-        
-        // Convertir le Markdown en HTML
-        const html = marked.parse(processedText, options)
-        
-        // Sanitiser l'HTML pour éviter les attaques XSS
-        return DOMPurify.sanitize(html)
-      } catch (error) {
-        console.error('Erreur lors du formatage Markdown:', error)
-        return text // Retourner le texte original en cas d'erreur
-      }
-    }
-    
     const messagesContainer = ref(null)
+    const apiUrl = process.env.VUE_APP_API_URL || ''
+    
+    // Variables pour les dialogues d'actions sur les messages
+    const showReplyDialog = ref(false)
+    const showReactDialog = ref(false)
+    const showEditDialog = ref(false)
+    const showDeleteDialog = ref(false)
+    const selectedMessage = ref(null)
+    const editContent = ref('')
+    
     const showMembers = ref(false)
     const showSettings = ref(false)
     const loading = ref(true)
@@ -315,6 +403,12 @@ export default defineComponent({
       }
     });
 
+    // Approche plus simple pour gérer les avatars
+    const getDefaultAvatar = (username) => {
+      if (!username) return 'U';
+      return username.charAt(0).toUpperCase();
+    };
+
     // Surveiller les changements de canal pour recharger les messages
     watch(() => canalId.value, async (newCanalId, oldCanalId) => {
       if (newCanalId && newCanalId !== oldCanalId) {
@@ -341,6 +435,111 @@ export default defineComponent({
       socketService.disconnect();
     });
 
+    // Fonction pour répondre à un message
+    const replyToMessage = (message) => {
+      selectedMessage.value = message;
+      showReplyDialog.value = true;
+    };
+
+    // Fonction pour réagir à un message
+    const reactToMessage = (message) => {
+      selectedMessage.value = message;
+      showReactDialog.value = true;
+    };
+    
+    // Fonction pour envoyer une réaction avec un emoji spécifique
+    const sendReaction = async (emoji) => {
+      if (!selectedMessage.value) return;
+      
+      try {
+        await store.dispatch('message/reactToMessage', {
+          canalId: canalId.value,
+          workspaceId: workspaceId.value,
+          messageId: selectedMessage.value._id,
+          emoji: emoji
+        });
+        
+        showReactDialog.value = false;
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi de la réaction:', error);
+      }
+    };
+
+    // Fonction pour modifier un message
+    const editMessage = (message) => {
+      selectedMessage.value = message;
+      editContent.value = message.contenu;
+      showEditDialog.value = true;
+    };
+
+    // Fonction pour supprimer un message
+    const deleteMessage = (message) => {
+      selectedMessage.value = message;
+      showDeleteDialog.value = true;
+    };
+
+    // Fonction pour confirmer la réponse à un message
+    const confirmReply = async () => {
+      if (!contenuMessage.value.trim() || !selectedMessage.value) return;
+      
+      try {
+        console.log('Réponse au message:', selectedMessage.value._id, 'avec contenu:', contenuMessage.value);
+        
+        await store.dispatch('message/replyToMessage', {
+          canalId: canalId.value,
+          workspaceId: workspaceId.value,
+          messageData: {
+            contenu: contenuMessage.value,
+            reponseA: selectedMessage.value._id
+          }
+        });
+        
+        contenuMessage.value = '';
+        showReplyDialog.value = false;
+        selectedMessage.value = null;
+        // Charger les messages pour voir la réponse
+        await loadMessages();
+        scrollToBottom();
+      } catch (error) {
+        console.error('Erreur lors de la réponse au message:', error);
+      }
+    };
+
+    // Fonction pour confirmer la modification d'un message
+    const confirmEdit = async () => {
+      if (!editContent.value.trim()) return;
+      
+      try {
+        await store.dispatch('message/updateMessage', {
+          canalId: canalId.value,
+          workspaceId: workspaceId.value,
+          messageId: selectedMessage.value._id,
+          contenu: editContent.value
+        });
+        
+        showEditDialog.value = false;
+        selectedMessage.value = null;
+      } catch (error) {
+        console.error('Erreur lors de la modification du message:', error);
+      }
+    };
+
+    // Fonction pour confirmer la suppression d'un message
+    const confirmDelete = async () => {
+      try {
+        await store.dispatch('message/deleteMessage', {
+          canalId: canalId.value,
+          workspaceId: workspaceId.value,
+          messageId: selectedMessage.value._id
+        });
+        
+        showDeleteDialog.value = false;
+        selectedMessage.value = null;
+      } catch (error) {
+        console.error('Erreur lors de la suppression du message:', error);
+      }
+    };
+
     return {
       showMembers,
       showSettings,
@@ -361,9 +560,26 @@ export default defineComponent({
       formatDate,
       envoyerMessage,
       scrollToBottom,
-      formatMarkdown,
       onFileUploaded,
-      canalId
+      canalId,
+      apiUrl,
+      getDefaultAvatar,
+      // Nouvelles fonctions d'actions
+      replyToMessage,
+      reactToMessage,
+      editMessage,
+      deleteMessage,
+      sendReaction,
+      // Dialogues
+      showReplyDialog,
+      showReactDialog,
+      showEditDialog,
+      showDeleteDialog,
+      selectedMessage,
+      editContent,
+      confirmReply,
+      confirmEdit,
+      confirmDelete
     };
   }
 });
@@ -410,8 +626,8 @@ export default defineComponent({
   text-overflow: ellipsis;
 }
 
-/* Styles pour le formatage Markdown */
-.markdown-content {
+/* Styles pour le contenu des messages */
+.message-content {
   word-break: break-word;
   white-space: pre-wrap;
   overflow: visible;
@@ -419,76 +635,15 @@ export default defineComponent({
   max-width: none;
 }
 
-.markdown-content :deep(h1) {
-  font-size: 1.5rem;
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
+/* Styles pour les boutons d'action */
+.message-actions {
+  display: flex;
+  gap: 4px;
 }
 
-.markdown-content :deep(h2) {
-  font-size: 1.25rem;
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.markdown-content :deep(h3) {
-  font-size: 1.1rem;
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.markdown-content :deep(p) {
-  margin-bottom: 0.5rem;
-}
-
-.markdown-content :deep(ul), 
-.markdown-content :deep(ol) {
-  padding-left: 1.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.markdown-content :deep(li) {
-  margin-bottom: 0.25rem;
-}
-
-.markdown-content :deep(code) {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 0.1rem 0.3rem;
-  border-radius: 3px;
-  font-family: monospace;
-}
-
-.markdown-content :deep(pre) {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 0.5rem;
-  border-radius: 4px;
-  overflow-x: auto;
-  margin-bottom: 0.5rem;
-}
-
-.markdown-content :deep(pre code) {
-  background-color: transparent;
-  padding: 0;
-}
-
-.markdown-content :deep(blockquote) {
-  border-left: 3px solid rgba(0, 0, 0, 0.2);
-  padding-left: 0.5rem;
-  margin-left: 0.5rem;
-  color: rgba(0, 0, 0, 0.6);
-}
-
-.markdown-content :deep(a) {
-  color: #1976d2;
-  text-decoration: none;
-}
-
-.markdown-content :deep(a:hover) {
-  text-decoration: underline;
-}
-
-.markdown-content :deep(img) {
-  max-width: 100%;
-  height: auto;
+/* Styles pour les boutons emoji */
+.emoji-btn {
+  font-size: 1.2rem;
+  min-width: 40px;
 }
 </style>

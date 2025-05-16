@@ -58,10 +58,11 @@ const actions = {
     }
   },
 
-  async updateMessage({ commit }, { workspaceId, canalId, messageId, messageData }) {
+  async updateMessage({ commit }, { workspaceId, canalId, messageId, contenu }) {
     try {
-      console.log(`Mise à jour du message ${messageId} avec:`, messageData);
-      const response = await api.patch(`/workspaces/${workspaceId}/canaux/${canalId}/messages/${messageId}`, messageData)
+      console.log(`Mise à jour du message ${messageId} avec contenu:`, contenu);
+      // S'assurer que le contenu est envoyé dans un objet avec la propriété 'contenu'
+      const response = await api.patch(`/workspaces/${workspaceId}/canaux/${canalId}/messages/${messageId}`, { contenu })
       console.log('Réponse de mise à jour:', response.data);
       commit('UPDATE_MESSAGE', response.data.data.message)
       return response.data.data.message

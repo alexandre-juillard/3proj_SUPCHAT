@@ -507,9 +507,11 @@ export default defineComponent({
 
     // Fonction pour confirmer la modification d'un message
     const confirmEdit = async () => {
-      if (!editContent.value.trim()) return;
+      if (!editContent.value.trim() || !selectedMessage.value) return;
       
       try {
+        console.log('Modification du message:', selectedMessage.value._id, 'avec contenu:', editContent.value);
+        
         await store.dispatch('message/updateMessage', {
           canalId: canalId.value,
           workspaceId: workspaceId.value,
@@ -519,6 +521,8 @@ export default defineComponent({
         
         showEditDialog.value = false;
         selectedMessage.value = null;
+        // Recharger les messages pour voir les modifications
+        await loadMessages();
       } catch (error) {
         console.error('Erreur lors de la modification du message:', error);
       }

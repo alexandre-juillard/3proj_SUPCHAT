@@ -105,17 +105,53 @@
                 :targetId="canalId" 
                 :onSuccess="onFileUploaded"
               />
-              <v-text-field
-                v-model="contenuMessage"
-                placeholder="Écrivez votre message..."
-                append-icon="mdi-send"
-                @click:append="envoyerMessage"
-                @keyup.enter="envoyerMessage"
-                hide-details
-                dense
-                outlined
-                class="message-input"
-              ></v-text-field>
+              <div class="message-input-wrapper">
+                <v-text-field
+                  v-model="contenuMessage"
+                  placeholder="Écrivez votre message..."
+                  append-icon="mdi-send"
+                  @click:append="envoyerMessage"
+                  @keyup.enter="envoyerMessage"
+                  @input="handleMessageInput"
+                  @keydown.down.prevent="navigateSuggestions(1)"
+                  @keydown.up.prevent="navigateSuggestions(-1)"
+                  @keydown.tab.prevent="selectSuggestion"
+                  ref="messageInput"
+                  hide-details
+                  dense
+                  outlined
+                  class="message-input"
+                ></v-text-field>
+                
+                <!-- Menu de suggestion pour les mentions d'utilisateurs -->
+                <v-menu
+                  v-model="showUserSuggestions"
+                  :close-on-content-click="false"
+                  :position-x="mentionMenuX"
+                  :position-y="mentionMenuY"
+                  absolute
+                  max-width="300"
+                >
+                  <v-list dense v-if="filteredUsers.length > 0">
+                    <v-list-item
+                      v-for="(user, index) in filteredUsers"
+                      :key="user._id"
+                      @click="insertUserMention(user)"
+                      :class="{ 'v-list-item--active': index === selectedSuggestionIndex }"
+                    >
+                      <v-list-item-avatar size="24">
+                        <v-avatar size="24" color="primary" v-if="!user.avatar">
+                          {{ getDefaultAvatar(user.username) }}
+                        </v-avatar>
+                        <v-img v-else :src="user.avatar" alt="Avatar"></v-img>
+                      </v-list-item-avatar>
+                      <v-list-item-content>
+                        <v-list-item-title>{{ user.username }}</v-list-item-title>
+                      </v-list-item-content>
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
+              </div>
             </v-card-actions>
           </v-card>
         </v-col>
@@ -230,6 +266,7 @@ export default defineComponent({
     const route = useRoute()
     const store = useStore()
     const messagesContainer = ref(null)
+    /* eslint-disable-next-line no-unused-vars */
     const apiUrl = process.env.VUE_APP_API_URL || ''
     
     // Variables pour les dialogues d'actions sur les messages
@@ -240,12 +277,24 @@ export default defineComponent({
     const selectedMessage = ref(null)
     const editContent = ref('')
     
+    /* eslint-disable-next-line no-unused-vars */
     const showMembers = ref(false)
     const showSettings = ref(false)
     const loading = ref(true)
     const sending = ref(false)
     const contenuMessage = ref('')
+    const fichiers = ref([])
     
+    // Variables pour les suggestions d'utilisateurs
+    const showUserSuggestions = ref(false);
+    const mentionStartIndex = ref(-1);
+    const mentionQuery = ref('');
+    const filteredUsers = ref([]);
+    const selectedSuggestionIndex = ref(0);
+    const mentionMenuX = ref(0);
+    const mentionMenuY = ref(0);
+    const messageInput = ref(null);
+
     // Variables pour la pagination et le rendu par lots
     const messagesPerPage = ref(20) // Nombre de messages à afficher par page
     const currentPage = ref(1) // Page actuelle
@@ -320,6 +369,7 @@ export default defineComponent({
       }, 500);
     };
 
+    // Fonction pour formater les dates
     const formatDate = (dateString) => {
       if (!dateString) return '';
       
@@ -349,11 +399,16 @@ export default defineComponent({
     };
 
     const envoyerMessage = async () => {
-      if (!contenuMessage.value.trim()) return;
+      if (!contenuMessage.value.trim() && fichiers.value.length === 0) return;
       
-      sending.value = true;
+      // Si le menu de suggestions est ouvert et qu'on appuie sur Entrée, on sélectionne la suggestion
+      if (showUserSuggestions.value) {
+        selectSuggestion();
+        return;
+      }
       
       try {
+        sending.value = true;
         await store.dispatch('message/sendMessage', {
           canalId: canalId.value,
           workspaceId: workspaceId.value,
@@ -363,12 +418,157 @@ export default defineComponent({
         });
         
         contenuMessage.value = '';
+        // Réinitialiser les variables de suggestion
+        resetMentionState();
         scrollToBottom();
       } catch (error) {
         console.error('Erreur lors de l\'envoi du message:', error);
       } finally {
         sending.value = false;
       }
+    };
+    
+    // Fonction pour gérer la détection des mentions d'utilisateurs
+    /* eslint-disable-next-line no-unused-vars */
+    const handleMessageInput = () => {
+      const text = contenuMessage.value;
+      
+      // Si le texte est vide, réinitialiser l'état des mentions
+      if (!text) {
+        resetMentionState();
+        return;
+      }
+      
+      // Détecter les mentions d'utilisateurs avec @
+      // Accéder à selectionStart de manière sécurisée pour éviter les erreurs
+      const cursorPosition = messageInput.value && messageInput.value.$refs && messageInput.value.$refs.input ? 
+                            messageInput.value.$refs.input.selectionStart : 
+                            text.length;
+      const textBeforeCursor = text.substring(0, cursorPosition);
+      
+      // Vérifier si nous sommes en train de taper une mention d'utilisateur
+      const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+      
+      if (lastAtSymbol !== -1) {
+        // Vérifier si le @ est au début du texte ou précédé d'un espace
+        const charBeforeAt = lastAtSymbol > 0 ? textBeforeCursor[lastAtSymbol - 1] : ' ';
+        
+        if (charBeforeAt === ' ' || charBeforeAt === '\n' || lastAtSymbol === 0) {
+          // Vérifier s'il y a un espace après le @
+          const textAfterAt = textBeforeCursor.substring(lastAtSymbol + 1);
+          const hasSpaceAfterAt = /^\s/.test(textAfterAt);
+          
+          // Si un espace est trouvé après @, on ne considère pas comme une mention
+          if (!hasSpaceAfterAt) {
+            console.log('Détection de mention d\'utilisateur');
+            mentionStartIndex.value = lastAtSymbol;
+            mentionQuery.value = textAfterAt;
+            
+            // Positionner le menu de suggestions
+            positionMentionMenu();
+            
+            // Filtrer les utilisateurs en fonction de la requête
+            filterUsers();
+            
+            return;
+          }
+        }
+      }
+      
+      // Si on arrive ici, on n'est pas en train de taper une mention
+      resetMentionState();
+    };
+    
+    // Fonction pour positionner le menu de suggestions
+    const positionMentionMenu = () => {
+      if (!messageInput.value) return;
+      
+      const inputEl = messageInput.value.$el;
+      const rect = inputEl.getBoundingClientRect();
+      
+      // Position approximative basée sur la position du curseur
+      mentionMenuX.value = rect.left + 20; // Ajuster selon les besoins
+      mentionMenuY.value = rect.top - 200; // Placer au-dessus du champ de texte
+    };
+    
+    // Fonction pour filtrer les utilisateurs en fonction de la requête
+    const filterUsers = async () => {
+      if (!canal.value || !canal.value.membres) {
+        filteredUsers.value = [];
+        return;
+      }
+      
+      try {
+        // Récupérer les membres du canal
+        const membres = canal.value.membres;
+        
+        // Filtrer les membres en fonction de la requête
+        if (mentionQuery.value) {
+          filteredUsers.value = membres.filter(membre => 
+            membre.username && membre.username.toLowerCase().includes(mentionQuery.value.toLowerCase())
+          );
+        } else {
+          filteredUsers.value = membres;
+        }
+        
+        // Limiter le nombre de suggestions
+        filteredUsers.value = filteredUsers.value.slice(0, 5);
+        
+        // Afficher le menu de suggestions s'il y a des résultats
+        showUserSuggestions.value = filteredUsers.value.length > 0;
+        selectedSuggestionIndex.value = 0;
+      } catch (error) {
+        console.error('Erreur lors de la récupération des utilisateurs:', error);
+        filteredUsers.value = [];
+        showUserSuggestions.value = false;
+      }
+    };
+    
+    // Fonction pour naviguer dans les suggestions
+    /* eslint-disable-next-line no-unused-vars */
+    const navigateSuggestions = (direction) => {
+      if (!showUserSuggestions.value) return;
+      
+      const newIndex = selectedSuggestionIndex.value + direction;
+      if (newIndex >= 0 && newIndex < filteredUsers.value.length) {
+        selectedSuggestionIndex.value = newIndex;
+      }
+    };
+    
+    // Fonction pour sélectionner une suggestion
+    const selectSuggestion = () => {
+      if (!showUserSuggestions.value || filteredUsers.value.length === 0) return;
+      
+      const selectedUser = filteredUsers.value[selectedSuggestionIndex.value];
+      insertUserMention(selectedUser);
+    };
+    
+    // Fonction pour insérer une mention d'utilisateur dans le message
+    const insertUserMention = (user) => {
+      if (!user || !user.username || mentionStartIndex.value === -1) return;
+      
+      const beforeMention = contenuMessage.value.substring(0, mentionStartIndex.value);
+      const afterMention = contenuMessage.value.substring(mentionStartIndex.value + mentionQuery.value.length + 1);
+      
+      // Insérer la mention avec un espace après
+      contenuMessage.value = `${beforeMention}@${user.username} ${afterMention}`;
+      
+      // Réinitialiser l'état des mentions
+      resetMentionState();
+      
+      // Mettre le focus sur le champ de message
+      if (messageInput.value) {
+        messageInput.value.focus();
+      }
+    };
+    
+    // Fonction pour réinitialiser l'état des mentions
+    const resetMentionState = () => {
+      showUserSuggestions.value = false;
+      mentionStartIndex.value = -1;
+      mentionQuery.value = '';
+      filteredUsers.value = [];
+      selectedSuggestionIndex.value = 0;
     };
 
     const loadMessages = async () => {
@@ -407,6 +607,37 @@ export default defineComponent({
     const getDefaultAvatar = (username) => {
       if (!username) return 'U';
       return username.charAt(0).toUpperCase();
+    };
+    
+    // Fonction pour formater le contenu des messages et détecter les mentions
+    /* eslint-disable-next-line no-unused-vars */
+    const formatMessageContent = (content) => {
+      if (!content) return '';
+      
+      // Sanitiser le contenu pour éviter les injections XSS
+      let sanitizedContent = content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+      
+      // Détecter les mentions d'utilisateurs (@username)
+      const mentionRegex = /@(\w+)/g;
+      sanitizedContent = sanitizedContent.replace(mentionRegex, (match, username) => {
+        return `<span class="mention-tag">@${username}</span>`;
+      });
+      
+      // Détecter les mentions de canaux (#canal)
+      const canalRegex = /#(\w+)/g;
+      sanitizedContent = sanitizedContent.replace(canalRegex, (match, canalName) => {
+        return `<span class="canal-mention-tag">#${canalName}</span>`;
+      });
+      
+      // Convertir les retours à la ligne en <br>
+      sanitizedContent = sanitizedContent.replace(/\n/g, '<br>');
+      
+      return sanitizedContent;
     };
 
     // Surveiller les changements de canal pour recharger les messages
@@ -448,6 +679,7 @@ export default defineComponent({
     };
     
     // Fonction pour envoyer une réaction avec un emoji spécifique
+    /* eslint-disable-next-line no-unused-vars */
     const sendReaction = async (emoji) => {
       if (!selectedMessage.value) return;
       
@@ -544,46 +776,61 @@ export default defineComponent({
       }
     };
 
+    // Définir les variables manquantes pour éviter les erreurs no-undef
+    const error = ref(null);
+    
     return {
-      showMembers,
-      showSettings,
-      loading,
-      sending,
+      // Variables de base
+      canalId,
+      workspaceId,
+      canal,
+      messages,
       contenuMessage,
+      loading,
+      showSettings,
       messagesPerPage,
       currentPage,
       loadingMore,
       hasMoreMessages,
-      visibleMessages,
-      loadMoreMessages,
-      canal,
-      messages,
-      messagesInOrder,
       user,
-      messagesContainer,
-      formatDate,
+      error,
+      sending,
+      fichiers,
+      selectedMessage,
+      visibleMessages,
+      
+      // Fonctions de base
+      loadMessages,
+      loadMoreMessages,
       envoyerMessage,
-      scrollToBottom,
-      onFileUploaded,
-      canalId,
-      apiUrl,
-      getDefaultAvatar,
-      // Nouvelles fonctions d'actions
       replyToMessage,
       reactToMessage,
       editMessage,
       deleteMessage,
-      sendReaction,
+      onFileUploaded,
+      getDefaultAvatar,
+      messagesInOrder,
+      scrollToBottom,
+      formatDate,
+      
       // Dialogues
       showReplyDialog,
       showReactDialog,
       showEditDialog,
       showDeleteDialog,
-      selectedMessage,
       editContent,
       confirmReply,
       confirmEdit,
-      confirmDelete
+      confirmDelete,
+      
+      // Fonction pour les mentions
+      handleMessageInput,
+      navigateSuggestions,
+      selectSuggestion,
+      showUserSuggestions,
+      filteredUsers,
+      selectedSuggestionIndex,
+      messageInput
     };
   }
 });
@@ -604,6 +851,12 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.message-input-wrapper {
+  flex: 1;
+  width: 100%;
+  display: flex;
 }
 
 .message-input {
@@ -637,6 +890,34 @@ export default defineComponent({
   overflow: visible;
   text-overflow: initial;
   max-width: none;
+}
+
+.mention-tag {
+  background-color: rgba(29, 155, 240, 0.1);
+  color: #1d9bf0;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-weight: 500;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.mention-tag:hover {
+  background-color: rgba(29, 155, 240, 0.2);
+}
+
+.canal-mention-tag {
+  background-color: rgba(83, 166, 151, 0.1);
+  color: #53a697;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-weight: 500;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.canal-mention-tag:hover {
+  background-color: rgba(83, 166, 151, 0.2);
 }
 
 /* Styles pour les boutons d'action */

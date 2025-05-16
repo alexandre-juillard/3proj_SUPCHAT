@@ -132,12 +132,12 @@
   - [x] Mentions (@user)
   - [x] Réactions aux messages
   - [x] Réponses aux messages
-- [ ] Gestion des fichiers
-  - [ ] Upload de fichiers
-  - [ ] Partage de fichiers
-  - [ ] Prévisualisation des médias
-  - [ ] Stockage sécurisé
-- [ ] Tests unitaires
+- [x] Gestion des fichiers
+  - [x] Upload de fichiers
+  - [x] Partage de fichiers
+  - [x] Prévisualisation des médias
+  - [x] Stockage sécurisé
+- [x] Tests unitaires
 
 ### Notifications API
 - [ ] Système de notifications
@@ -151,14 +151,14 @@
 - [ ] Tests unitaires
 
 ### Recherche API
-- [ ] Recherche globale
-  - [ ] Messages
-  - [ ] Fichiers
-  - [ ] Utilisateurs
-- [ ] Recherche par workspace
-- [ ] Recherche par canal
-- [ ] Filtres avancés
-- [ ] Tests unitaires
+- [x] Recherche globale
+  - [x] Messages
+  - [x] Fichiers
+  - [x] Utilisateurs
+- [x] Recherche par workspace
+- [x] Recherche par canal
+- [x] Filtres avancés
+- [x] Tests unitaires
 
 ## Documentation API
 

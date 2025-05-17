@@ -46,12 +46,12 @@
       </v-list-item>
     </v-list>
     
-    <div v-else-if="searchQuery && !loading" class="no-results">
-      <p>Aucun utilisateur trouvé</p>
+    <div v-else-if="loading" class="loading">
+      <v-progress-circular indeterminate color="primary"></v-progress-circular>
     </div>
     
-    <div v-if="loading" class="loading">
-      <v-progress-circular indeterminate color="primary"></v-progress-circular>
+    <div v-else-if="searchQuery" class="no-results">
+      <p>Aucun utilisateur trouvé</p>
     </div>
   </div>
 </template>
@@ -93,15 +93,33 @@ export default {
         
         console.log('Réponse de recherche d\'utilisateurs:', response.data);
         
-        // Vérifier la structure exacte de la réponse et extraire les utilisateurs
-        if (response.data.success && response.data.data && Array.isArray(response.data.data.users)) {
-          results.value = response.data.data.users;
+        // Analyser la structure de la réponse pour extraire les utilisateurs
+        if ((response.data.success || response.data.status === 'success') && response.data.data) {
+          // Structure classique: { success: true, data: { users: [...] } }
+          if (Array.isArray(response.data.data.users)) {
+            results.value = response.data.data.users;
+          } 
+          // Structure alternative: { success: true, data: [...] }
+          else if (Array.isArray(response.data.data)) {
+            results.value = response.data.data;
+          } 
+          // Structure { success: true, data: { result: [...] } }
+          else if (response.data.data.result && Array.isArray(response.data.data.result)) {
+            results.value = response.data.data.result;
+          } 
+          // Juste au cas où on aurait directement un tableau
+          else if (Array.isArray(response.data)) {
+            results.value = response.data;
+          } 
+          else {
+            console.warn('Structure de réponse inattendue:', response.data);
+            results.value = [];
+          }
+          
           console.log('Utilisateurs trouvés:', results.value.length);
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          results.value = response.data.data;
-          console.log('Utilisateurs trouvés directement dans data:', results.value.length);
+          console.log('Résultats:', results.value);
         } else {
-          console.warn('Structure de réponse inattendue, impossible de trouver les utilisateurs');
+          console.warn('Aucun utilisateur trouvé ou structure de réponse inattendue');
           results.value = [];
         }
       } catch (error) {

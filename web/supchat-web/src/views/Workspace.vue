@@ -24,12 +24,27 @@
               :key="canal._id"
               :to="'/workspace/' + workspaceId + '/canal/' + canal._id"
               link
+              class="canal-list-item"
             >
-              <v-list-item-title>
-                <v-icon small>
-                  {{ canal.type === 'vocal' ? 'mdi-microphone' : 'mdi-message-text' }}
-                </v-icon>
-                {{ canal.visibilite === 'prive' ? '🔒' : '#' }} {{ canal.nom }}
+              <v-list-item-title class="d-flex align-center justify-space-between">
+                <div class="d-flex align-center">
+                  <v-icon small class="mr-1">
+                    {{ canal.type === 'vocal' ? 'mdi-microphone' : 'mdi-message-text' }}
+                  </v-icon>
+                  <span>{{ canal.visibilite === 'prive' ? '🔒' : '#' }} {{ canal.nom }}</span>
+                </div>
+                
+                <!-- Badge de notification -->
+                <div class="position-relative">
+                  <v-badge
+                    v-if="getMessagesNonLusPourCanal(canal._id) > 0"
+                    :content="getMessagesNonLusPourCanal(canal._id) > 99 ? '99+' : getMessagesNonLusPourCanal(canal._id)"
+                    color="error"
+                    :class="{ 'primary': hasMentionPourCanal(canal._id) }"
+                    offset-x="5"
+                    offset-y="5"
+                  ></v-badge>
+                </div>
               </v-list-item-title>
             </v-list-item>
           </v-list>
@@ -327,7 +342,7 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex'
+import { mapState, mapActions, mapGetters } from 'vuex'
 
 export default {
   name: 'WorkspaceView',
@@ -390,6 +405,12 @@ export default {
       canaux: state => state.canal.canaux,
       currentUser: state => state.auth.user
     }),
+    
+    // Map des getters de notification
+    ...mapGetters('notification', [
+      'getMessagesNonLusPourCanal',
+      'hasMentionPourCanal'
+    ]),
     workspaceId() {
       return this.$route.params.id
     },
@@ -584,6 +605,16 @@ export default {
       try {
         await this.$store.dispatch('workspace/fetchWorkspace', this.workspaceId)
         await this.$store.dispatch('canal/fetchCanaux', this.workspaceId)
+        
+        // Charger les notifications et les compteurs de messages non lus
+        await this.$store.dispatch('notification/fetchNotifications')
+        
+        // Pour chaque canal, charger le nombre de messages non lus
+        if (this.canaux && this.canaux.length > 0) {
+          for (const canal of this.canaux) {
+            await this.$store.dispatch('notification/fetchMessagesNonLusPourCanal', canal._id)
+          }
+        }
       } catch (error) {
         console.error('Erreur lors du chargement du workspace:', error)
         this.snackbar = {

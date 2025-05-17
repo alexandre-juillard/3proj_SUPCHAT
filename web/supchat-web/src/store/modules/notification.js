@@ -99,7 +99,7 @@ const actions = {
   // Charger le nombre de messages non lus pour un canal
   async fetchMessagesNonLusPourCanal({ commit }, canalId) {
     try {
-      const response = await api.get(`/notifications/canal/${canalId}/count`);
+      const response = await api.get(`/notifications/canal/${canalId}/nombre`);
       commit('SET_MESSAGES_NON_LUS_POUR_CANAL', { canalId, count: response.data.data.count });
       return response.data.data.count;
     } catch (error) {
@@ -111,7 +111,7 @@ const actions = {
   // Charger le nombre de messages non lus pour une conversation
   async fetchMessagesNonLusPourConversation({ commit }, conversationId) {
     try {
-      const response = await api.get(`/notifications/conversation/${conversationId}/count`);
+      const response = await api.get(`/notifications/conversation/${conversationId}/nombre`);
       commit('SET_MESSAGES_NON_LUS_POUR_CONVERSATION', { conversationId, count: response.data.data.count });
       return response.data.data.count;
     } catch (error) {
@@ -123,7 +123,7 @@ const actions = {
   // Charger le nombre total de messages non lus
   async fetchTotalMessagesNonLus({ commit }) {
     try {
-      const response = await api.get('/notifications/count');
+      const response = await api.get('/notifications/nombre');
       commit('SET_TOTAL_MESSAGES_NON_LUS', response.data.data.count);
       return response.data.data.count;
     } catch (error) {

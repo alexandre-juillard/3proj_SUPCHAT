@@ -9,9 +9,9 @@ router.use(authController.protect);
 
 // Routes pour les notifications
 router.get('/', notificationController.getNonLues);
-router.get('/count', notificationController.compterToutesNonLues);
-router.get('/canal/:canalId/count', notificationController.compterNonLuesPourCanal);
-router.get('/conversation/:conversationId/count', notificationController.compterNonLuesPourConversation);
+router.get('/nombre', notificationController.compterToutesNonLues);
+router.get('/canal/:canalId/nombre', notificationController.compterNonLuesPourCanal);
+router.get('/conversation/:conversationId/nombre', notificationController.compterNonLuesPourConversation);
 router.get('/canaux/:workspaceId', notificationController.getCanauxAvecMessagesNonLus);
 router.get('/preferences', notificationController.getPreferences);
 router.patch('/preferences', notificationController.updatePreferences);

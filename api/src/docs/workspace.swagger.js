@@ -336,6 +336,53 @@
  *         description: Impossible de supprimer le dernier admin ou le propriétaire
  *
  * @swagger
+ * /api/v1/workspaces/{id}/quitter:
+ *   delete:
+ *     summary: Quitter un workspace
+ *     description: Permet à l'utilisateur connecté de quitter un workspace dont il est membre
+ *     tags: [Workspaces]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du workspace à quitter
+ *     responses:
+ *       200:
+ *         description: Workspace quitté avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Vous avez quitté le workspace avec succès
+ *       400:
+ *         description: Impossible de quitter le workspace (propriétaire ou dernier admin)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: En tant que propriétaire, vous ne pouvez pas quitter le workspace. Transférez la propriété à un autre membre ou supprimez le workspace.
+ *       401:
+ *         description: Non authentifié
+ *       404:
+ *         description: Workspace non trouvé ou vous n'êtes pas membre
+ *
+ * @swagger
  * /api/v1/workspaces/{id}/membres/{membreId}/role:
  *   patch:
  *     summary: Modifier le rôle d'un membre

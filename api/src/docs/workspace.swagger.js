@@ -157,6 +157,9 @@
  *                 message:
  *                   type: string
  *                   example: Erreur lors de la récupération des workspaces
+ *
+ * @swagger
+ * /api/v1/workspaces:
  *   post:
  *     summary: Créer un nouveau workspace
  *     description: Crée un nouveau workspace avec l'utilisateur connecté comme propriétaire

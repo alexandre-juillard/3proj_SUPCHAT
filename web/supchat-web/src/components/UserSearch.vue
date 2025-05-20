@@ -26,9 +26,9 @@
         
         <v-list-item-content>
           <v-list-item-title>
-            {{ user.prenom && user.nom ? `${user.prenom} ${user.nom}` : user.username }}
+            {{ user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username }}
           </v-list-item-title>
-          <v-list-item-subtitle v-if="user.prenom && user.nom">
+          <v-list-item-subtitle v-if="user.firstName && user.lastName">
             @{{ user.username }}
           </v-list-item-subtitle>
         </v-list-item-content>
@@ -94,14 +94,21 @@ export default {
         console.log('Réponse de recherche d\'utilisateurs:', response.data);
         
         // Vérifier la structure exacte de la réponse et extraire les utilisateurs
-        if (response.data.success && response.data.data && Array.isArray(response.data.data.users)) {
-          results.value = response.data.data.users;
-          console.log('Utilisateurs trouvés:', results.value.length);
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          results.value = response.data.data;
-          console.log('Utilisateurs trouvés directement dans data:', results.value.length);
+        if (response.data.status === 'success') {
+          if (response.data.data && Array.isArray(response.data.data.users)) {
+            // Format: {status: 'success', data: {users: [...]}}
+            results.value = response.data.data.users;
+            console.log('Utilisateurs trouvés dans data.users:', results.value.length);
+          } else if (response.data.data && Array.isArray(response.data.data)) {
+            // Format: {status: 'success', data: [...]}
+            results.value = response.data.data;
+            console.log('Utilisateurs trouvés directement dans data:', results.value.length);
+          } else {
+            console.warn('Structure de réponse inattendue, impossible de trouver les utilisateurs');
+            results.value = [];
+          }
         } else {
-          console.warn('Structure de réponse inattendue, impossible de trouver les utilisateurs');
+          console.warn('La réponse n\'indique pas un succès');
           results.value = [];
         }
       } catch (error) {

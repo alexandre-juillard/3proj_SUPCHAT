@@ -72,6 +72,22 @@
  *                 description: URL de l'aperçu du fichier (pour les images)
  *               taille:
  *                 type: number
+ *         reactions:
+ *           type: array
+ *           description: Réactions au message
+ *           items:
+ *             type: object
+ *             properties:
+ *               utilisateur:
+ *                 type: string
+ *                 description: ID de l'utilisateur qui a réagi
+ *               emoji:
+ *                 type: string
+ *                 description: Emoji utilisé pour la réaction
+ *               date:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Date et heure de la réaction
  */
 
 /**

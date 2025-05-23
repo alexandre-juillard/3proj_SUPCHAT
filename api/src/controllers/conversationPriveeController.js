@@ -685,7 +685,6 @@ exports.deleteMessage = async (req, res, next) => {
                 }
             });
         }
-        
         res.status(204).json({
             status: 'success',
             data: null
@@ -695,3 +694,225 @@ exports.deleteMessage = async (req, res, next) => {
         next(new AppError('Erreur lors de la suppression du message', 500));
     }
 };
+
+// Répondre à un message dans une conversation
+exports.replyToMessage = async (req, res, next) => {
+    try {
+        const { id, messageId } = req.params;
+        const { contenu, fichiers } = req.body;
+        
+        // Vérifier si le contenu ou les fichiers sont présents
+        if ((!contenu || contenu.trim() === '') && (!fichiers || fichiers.length === 0)) {
+            return next(new AppError('Le message doit contenir du texte ou des fichiers', 400));
+        }
+        
+        // Vérifier si la conversation existe
+        const conversation = await ConversationPrivee.findById(id);
+        if (!conversation) {
+            return next(new AppError('Conversation non trouvée', 404));
+        }
+        
+        // Vérifier si l'utilisateur est participant
+        if (!conversation.estParticipant(req.user._id)) {
+            return next(new AppError('Vous n\'êtes pas autorisé à envoyer des messages dans cette conversation', 403));
+        }
+        
+        // Vérifier si le message auquel on répond existe et appartient à cette conversation
+        const originalMessage = await MessagePrivate.findOne({ _id: messageId, conversation: id });
+        if (!originalMessage) {
+            return next(new AppError('Message original non trouvé', 404));
+        }
+        
+        // Créer le nouveau message avec référence au message original
+        const newMessage = await MessagePrivate.create({
+            contenu: contenu || '',
+            expediteur: req.user._id,
+            conversation: id,
+            reponseA: messageId,
+            fichiers: fichiers || []
+        });
+        
+        // Mettre à jour la date de la dernière activité de la conversation
+        conversation.dernierMessage = newMessage._id;
+        await conversation.save();
+        
+        // Peupler les références pour la réponse
+        const populatedMessage = await MessagePrivate.findById(newMessage._id)
+            .populate('expediteur', 'username firstName lastName profilePicture')
+            .populate({
+                path: 'reponseA',
+                populate: {
+                    path: 'expediteur',
+                    select: 'username firstName lastName profilePicture'
+                }
+            });
+        
+        // Notifier les autres participants
+        if (io) {
+            conversation.participants.forEach(participant => {
+                if (participant.utilisateur.toString() !== req.user._id.toString()) {
+                    io.to(participant.utilisateur.toString()).emit('nouveau-message-prive', {
+                        message: populatedMessage,
+                        conversation: id
+                    });
+                }
+            });
+        }
+        
+        res.status(201).json({
+            status: 'success',
+            data: {
+                message: populatedMessage
+            }
+        });
+    } catch (error) {
+        console.error('Erreur lors de la réponse au message:', error);
+        next(new AppError('Erreur lors de la réponse au message', 500));
+    }
+};
+
+// Ajouter une réaction à un message
+exports.addReaction = async (req, res, next) => {
+    try {
+        const { id, messageId } = req.params;
+        const { emoji } = req.body;
+        
+        if (!emoji) {
+            return next(new AppError('L\'emoji est requis', 400));
+        }
+        
+        // Vérifier si la conversation existe
+        const conversation = await ConversationPrivee.findById(id);
+        if (!conversation) {
+            return next(new AppError('Conversation non trouvée', 404));
+        }
+        
+        // Vérifier si l'utilisateur est participant
+        if (!conversation.estParticipant(req.user._id)) {
+            return next(new AppError('Vous n\'\u00eates pas autorisé à réagir aux messages dans cette conversation', 403));
+        }
+        
+        // Récupérer le message
+        const message = await MessagePrivate.findOne({ _id: messageId, conversation: id });
+        if (!message) {
+            return next(new AppError('Message non trouvé', 404));
+        }
+        
+        // Vérifier si l'utilisateur a déjà réagi avec cet emoji
+        const existingReaction = message.reactions.find(
+            r => r.utilisateur.toString() === req.user._id.toString() && r.emoji === emoji
+        );
+        
+        if (existingReaction) {
+            return next(new AppError('Vous avez déjà réagi avec cet emoji', 400));
+        }
+        
+        // Ajouter la réaction
+        message.reactions.push({
+            utilisateur: req.user._id,
+            emoji,
+            date: new Date()
+        });
+        
+        await message.save();
+        
+        // Notifier les autres participants en temps réel
+        if (io) {
+            conversation.participants.forEach(participant => {
+                if (participant.utilisateur.toString() !== req.user._id.toString()) {
+                    io.to(participant.utilisateur.toString()).emit('message-reaction-added', {
+                        conversationId: conversation._id,
+                        messageId: message._id,
+                        reaction: {
+                            utilisateur: req.user._id,
+                            emoji,
+                            date: new Date()
+                        }
+                    });
+                }
+            });
+        }
+        
+        res.status(200).json({
+            status: 'success',
+            data: {
+                reaction: {
+                    utilisateur: req.user._id,
+                    emoji,
+                    date: new Date()
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout d\'une réaction:', error);
+        next(new AppError('Erreur lors de l\'ajout d\'une réaction', 500));
+    }
+};
+
+// Supprimer une réaction d'un message
+exports.removeReaction = async (req, res, next) => {
+    try {
+        const { id, messageId } = req.params;
+        const { emoji } = req.body;
+        
+        if (!emoji) {
+            return next(new AppError('L\'emoji est requis', 400));
+        }
+        
+        // Vérifier si la conversation existe
+        const conversation = await ConversationPrivee.findById(id);
+        if (!conversation) {
+            return next(new AppError('Conversation non trouvée', 404));
+        }
+        
+        // Vérifier si l'utilisateur est participant
+        if (!conversation.estParticipant(req.user._id)) {
+            return next(new AppError('Vous n\'\u00eates pas autorisé à supprimer des réactions dans cette conversation', 403));
+        }
+        
+        // Récupérer le message
+        const message = await MessagePrivate.findOne({ _id: messageId, conversation: id });
+        if (!message) {
+            return next(new AppError('Message non trouvé', 404));
+        }
+        
+        // Vérifier si l'utilisateur a réagi avec cet emoji
+        const reactionIndex = message.reactions.findIndex(
+            r => r.utilisateur.toString() === req.user._id.toString() && r.emoji === emoji
+        );
+        
+        if (reactionIndex === -1) {
+            return next(new AppError('Vous n\'avez pas réagi avec cet emoji', 400));
+        }
+        
+        // Supprimer la réaction
+        message.reactions.splice(reactionIndex, 1);
+        await message.save();
+        
+        // Notifier les autres participants en temps réel
+        if (io) {
+            conversation.participants.forEach(participant => {
+                if (participant.utilisateur.toString() !== req.user._id.toString()) {
+                    io.to(participant.utilisateur.toString()).emit('message-reaction-removed', {
+                        conversationId: conversation._id,
+                        messageId: message._id,
+                        reaction: {
+                            utilisateur: req.user._id,
+                            emoji
+                        }
+                    });
+                }
+            });
+        }
+        
+        res.status(200).json({
+            status: 'success',
+            message: 'Réaction supprimée avec succès'
+        });
+    } catch (error) {
+        console.error('Erreur lors de la suppression d\'une réaction:', error);
+        next(new AppError('Erreur lors de la suppression d\'une réaction', 500));
+    }
+};
+
+module.exports = exports;

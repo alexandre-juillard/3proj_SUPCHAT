@@ -90,7 +90,29 @@ const messagePrivateSchema = new mongoose.Schema({
         ref: 'User'
     }],
     // Fichiers attachés au message
-    fichiers: [fichierSchema] // Utiliser le sous-schéma pour les fichiers
+    fichiers: [fichierSchema], // Utiliser le sous-schéma pour les fichiers
+    
+    // Réactions au message
+    reactions: {
+        type: [
+            {
+                utilisateur: {
+                    type: mongoose.Schema.ObjectId,
+                    ref: 'User',
+                    required: true
+                },
+                emoji: {
+                    type: String,
+                    required: true
+                },
+                date: {
+                    type: Date,
+                    default: Date.now
+                }
+            }
+        ],
+        default: []
+    }
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

@@ -268,27 +268,30 @@ exports.leaveConversation = async (req, res, next) => {
         // Supprimer l'utilisateur des participants
         conversation.supprimerParticipant(req.user._id);
         
-        // Si c'est une conversation à 2 et qu'un participant quitte, supprimer la conversation
-        if (conversation.participants.length < 2) {
-            // Utiliser deleteOne pour déclencher le middleware de suppression en cascade
-            await ConversationPrivee.deleteOne({ _id: conversation._id });
-            
-            return res.status(204).json({
-                status: 'success',
-                data: null
-            });
-        }
+        // Nouvelle logique: Ne jamais supprimer la conversation quand un utilisateur la quitte
+        // Même si c'est une conversation à 2 personnes
+        // L'autre utilisateur pourra toujours voir la conversation et les messages
+        // Le premier utilisateur ne la verra plus tant qu'il n'y est pas rajouté
         
         // Si l'utilisateur qui quitte est le créateur, transférer le rôle au plus ancien participant
-        if (conversation.createur.toString() === req.user._id.toString()) {
+        if (conversation.createur.toString() === req.user._id.toString() && conversation.participants.length > 0) {
             // Trier les participants par date d'ajout
             const participants = conversation.participants.sort((a, b) => a.dateAjout - b.dateAjout);
-            if (participants.length > 0) {
-                conversation.createur = participants[0].utilisateur;
-            }
+            conversation.createur = participants[0].utilisateur;
+            console.log(`Nouveau créateur de la conversation: ${conversation.createur}`);
         }
         
         await conversation.save();
+        
+        // Notifier les autres participants que l'utilisateur a quitté la conversation
+        if (io) {
+            conversation.participants.forEach(participant => {
+                io.to(participant.utilisateur.toString()).emit('conversation-participant-left', {
+                    conversation: conversation._id,
+                    user: req.user._id
+                });
+            });
+        }
 
         res.status(204).json({
             status: 'success',

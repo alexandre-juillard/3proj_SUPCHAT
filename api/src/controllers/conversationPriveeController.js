@@ -365,24 +365,17 @@ exports.getConversationMessages = async (req, res, next) => {
                 console.log(`ID: ${msg._id}`);
                 console.log(`Contenu: "${msg.contenu}"`);
                 console.log(`Expéditeur: ${msg.expediteur}`);
-                console.log(`Contexte: ${msg.contexte ? JSON.stringify(msg.contexte) : 'Non défini'}`);
-                console.log(`Conversation (déprécié): ${msg.conversation || 'Non défini'}`);
+                console.log(`Conversation: ${msg.conversation || 'Non défini'}`);
             }
         });
         console.log('==== FIN DÉBOGAGE ====');
         
-        // Récupérer les messages de la conversation (prendre en compte les deux formats)
+        // Récupérer les messages de la conversation
         const messages = await MessagePrivate.find({
-            $or: [
-                // Nouveau format avec contexte
-                { 'contexte.type': 'conversation', 'contexte.id': id },
-                // Ancien format avec champ conversation
-                { conversation: id }
-            ]
+            conversation: id
         })
         .sort({ horodatage: 1 }) // Tri par date croissante
         .populate('expediteur', 'username firstName lastName profilePicture')
-        .populate('destinataire', 'username firstName lastName profilePicture')
         .populate({
             path: 'reponseA',
             populate: {
@@ -494,11 +487,8 @@ exports.sendMessageToConversation = async (req, res, next) => {
         const newMessage = await MessagePrivate.create({
             contenu,
             expediteur: req.user._id,
-            // Structure standardisée avec le champ contexte
-            contexte: {
-                type: 'conversation',  // Message dans une conversation de groupe
-                id: id
-            },
+            // Utiliser le champ conversation directement
+            conversation: id,
             reponseA: reponseA || null,
             horodatage: Date.now(),
             envoye: true,

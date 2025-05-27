@@ -15,6 +15,10 @@
         <v-icon left>mdi-account</v-icon>
         Profil
       </v-btn>
+      
+      <!-- Composant de notification -->
+      <notification-list></notification-list>
+      
       <v-btn text @click="handleLogout">
         <v-icon left>mdi-logout</v-icon>
         Déconnexion
@@ -44,12 +48,17 @@
 </template>
 
 <script>
-import { defineComponent, onMounted, computed, reactive } from 'vue'
+import { defineComponent, onMounted, computed, reactive, watch } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
+import NotificationList from './components/NotificationList.vue'
+import notificationService from './services/notificationService'
 
 export default defineComponent({
   name: 'App',
+  components: {
+    NotificationList
+  },
   setup() {
     const store = useStore()
     const router = useRouter()
@@ -77,6 +86,18 @@ export default defineComponent({
     onMounted(() => {
       // Initialiser l'état d'authentification au démarrage
       store.dispatch('auth/initAuth')
+      
+      // Initialiser le service de notification
+      if (isAuthenticated.value) {
+        notificationService.initialize()
+      }
+    })
+    
+    // Observer les changements d'authentification
+    watch(isAuthenticated, (newValue) => {
+      if (newValue) {
+        notificationService.initialize()
+      }
     })
 
     return {

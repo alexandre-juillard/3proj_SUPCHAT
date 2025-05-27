@@ -287,6 +287,8 @@ import { useStore } from 'vuex'
 import socketService from '../services/socketService'
 import FileUploader from '../components/FileUploader.vue'
 import FileAttachment from '../components/FileAttachment.vue'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 export default defineComponent({
   name: 'CanalView',
@@ -939,6 +941,9 @@ export default defineComponent({
           await loadMessages();
           scrollToBottom();
           
+          // Marquer les notifications comme lues lorsqu'on entre dans un canal
+          await store.dispatch('notification/marquerToutesNotificationsLues', canalId.value)
+          
           // Ajouter un gestionnaire d'événements global pour les clics sur les mentions de canaux
           // Après un court délai pour s'assurer que les messages sont rendus
           setTimeout(() => {
@@ -955,7 +960,7 @@ export default defineComponent({
                 if (event.target.classList.contains('canal-mention-tag')) {
                   const canalName = event.target.getAttribute('data-canal-name');
                   if (canalName) {
-                    console.log('Clic sur la mention de canal via écouteur d\'\u00e9vénements:', canalName);
+                    console.log('Clic sur la mention de canal via écouteur d\'événements:', canalName);
                     handleCanalMention(canalName);
                   }
                 }
@@ -970,163 +975,16 @@ export default defineComponent({
       }
     });
 
-    // Approche plus simple pour gérer les avatars
-    const getDefaultAvatar = (username) => {
-      if (!username) return 'U';
-      return username.charAt(0).toUpperCase();
-    };
-    
-    // Fonction pour formater le contenu des messages et détecter les mentions
-    const formatMessageContent = (content) => {
-      if (!content) return '';
-      
-      // Sanitiser le contenu pour éviter les injections XSS
-      let sanitizedContent = content
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-      
-      // Détecter les mentions d'utilisateurs (@username)
-      const mentionRegex = /@(\w+)/g;
-      sanitizedContent = sanitizedContent.replace(mentionRegex, (match, username) => {
-        return `<span class="mention-tag" onclick="window.handleUserMention('${username}')">@${username}</span>`;
-      });
-      
-      // Détecter les mentions de canaux (#canal)
-      const canalRegex = /#(\w+)/g;
-      sanitizedContent = sanitizedContent.replace(canalRegex, (match, canalName) => {
-        // Créer un élément cliquable pour les mentions de canaux
-        // Utiliser à la fois onclick et data-canal-name pour une meilleure compatibilité
-        return `<a href="javascript:void(0)" class="canal-mention-tag" data-canal-name="${canalName}" onclick="if(typeof window.handleCanalMention === 'function') window.handleCanalMention('${canalName}');">&#35;${canalName}</a>`;
-      });
-      
-      // Convertir les retours à la ligne en <br>
-      sanitizedContent = sanitizedContent.replace(/\n/g, '<br>');
-      
-      return sanitizedContent;
-    };
-    
-    // Fonction pour gérer le clic sur une mention de canal
-    const handleCanalMention = (canalName) => {
-      if (!canalName) {
-        console.warn('Nom de canal manquant');
-        return;
-      }
-      
-      console.log('Clic sur la mention de canal:', canalName);
-      
-      // Désactiver temporairement les autres clics pour éviter les doubles clics
-      const mentionElements = document.querySelectorAll('.canal-mention-tag');
-      mentionElements.forEach(el => {
-        el.style.pointerEvents = 'none';
-      });
-      
-      // Réactiver les clics après un court délai
-      setTimeout(() => {
-        mentionElements.forEach(el => {
-          el.style.pointerEvents = 'auto';
-        });
-      }, 1000);
-      
-      // Rechercher le canal par son nom en utilisant l'action fetchCanaux
-      store.dispatch('canal/fetchCanaux', workspaceId.value)
-        .then(canaux => {
-          if (canaux && Array.isArray(canaux)) {
-            // Trouver le canal correspondant au nom mentionné
-            const canal = canaux.find(c => c.nom && c.nom.toLowerCase() === canalName.toLowerCase());
-            
-            if (canal && canal._id) {
-              console.log(`Navigation vers le canal #${canalName} (${canal._id})`);
-              
-              // Naviguer vers le canal
-              navigateToCanal(canal._id);
-            } else {
-              console.warn(`Canal non trouvé: ${canalName}`);
-              
-              // Afficher un message d'erreur simple
-              alert(`Le canal #${canalName} n'a pas été trouvé dans ce workspace.`);
-            }
-          } else {
-            console.warn('Aucun canal récupéré');
-            alert('Impossible de récupérer la liste des canaux.');
-          }
-        })
-        .catch(error => {
-          console.error('Erreur lors de la recherche du canal:', error);
-          alert('Une erreur s\'est produite lors de la recherche du canal.');
-        });
-    };
-    
-    // Fonction pour définir le message auquel on répond
-    const setReplyTo = (message) => {
-      if (!message) return;
-      
-      replyingTo.value = message._id;
-      replyingToMessage.value = message;
-      
-      // Mettre le focus sur le champ de message
-      if (messageInput.value) {
-        messageInput.value.focus();
-      }
-    };
-    
-    // Fonction pour annuler la réponse
-    const cancelReply = () => {
-      replyingTo.value = null;
-      replyingToMessage.value = null;
-    };
-    
-    // Exposer la fonction handleCanalMention à window pour les événements onclick
-    onMounted(() => {
-      // S'assurer que les fonctions sont exposées après le montage du composant
-      if (typeof window !== 'undefined') {
-        // Exposer handleCanalMention avec une référence au composant actuel
-        window.handleCanalMention = (canalName) => {
-          console.log('Clic sur la mention de canal via window:', canalName);
-          handleCanalMention(canalName);
-        };
-        
-        // Exposer également handleUserMention si elle n'est pas déjà exposée
-        if (!window.handleUserMention) {
-          window.handleUserMention = (username) => {
-            console.log(`Mention d'utilisateur cliquée: ${username}`);
-            // Implémenter la logique pour gérer le clic sur une mention d'utilisateur si nécessaire
-          };
-        }
-      }
-    });
-    
-    // S'assurer que les fonctions sont retirées lors du démontage du composant
-    onUnmounted(() => {
-      if (typeof window !== 'undefined') {
-        window.handleCanalMention = null;
-        window.handleUserMention = null;
-      }
-    });
-
     // Surveiller les changements de canal pour recharger les messages
-    watch(() => canalId.value, async (newCanalId, oldCanalId) => {
-      if (newCanalId && newCanalId !== oldCanalId) {
-        loading.value = true;
-        try {
-          // Charger les détails du canal
-          await store.dispatch('canal/fetchCanal', {
-            canalId: newCanalId,
-            workspaceId: workspaceId.value
-          });
-          
-          // Charger les messages
-          await loadMessages();
-          loading.value = false;
-          scrollToBottom();
-        } catch (error) {
-          console.error('Erreur chargement canal:', error);
-          loading.value = false;
-        }
+    watch(canalId, async (newId, oldId) => {
+      if (newId && newId !== oldId) {
+        await loadMessages()
+        scrollToBottom()
+        
+        // Marquer les notifications comme lues lorsqu'on change de canal
+        await store.dispatch('notification/marquerToutesNotificationsLues', newId)
       }
-    });
+    })
 
     onUnmounted(() => {
       socketService.disconnect();
@@ -1244,6 +1102,79 @@ export default defineComponent({
 
     // Définir les variables manquantes pour éviter les erreurs no-undef
     const error = ref(null);
+    
+    // Fonction pour gérer les mentions de canaux
+    const handleCanalMention = (canalName) => {
+      if (!canalName) return;
+      
+      // Rechercher le canal par son nom
+      store.dispatch('canal/searchCanalByName', canalName)
+        .then(result => {
+          if (result && result.length > 0) {
+            const canal = result[0];
+            // Naviguer vers le canal trouvé
+            router.push({ name: 'Canal', params: { id: canal._id } });
+          } else {
+            console.warn(`Canal non trouvé: ${canalName}`);
+          }
+        })
+        .catch(error => {
+          console.error('Erreur lors de la recherche du canal:', error);
+        });
+    };
+    
+    // Fonction pour obtenir les initiales d'un utilisateur pour l'avatar par défaut
+    const getDefaultAvatar = (username) => {
+      if (!username) return '?';
+      return username.substring(0, 2).toUpperCase();
+    };
+    
+    // Fonction pour définir le message auquel on répond
+    const setReplyTo = (message) => {
+      if (!message) return;
+      replyingTo.value = message._id;
+      replyingToMessage.value = message;
+    };
+    
+    // Fonction pour annuler la réponse
+    const cancelReply = () => {
+      replyingTo.value = null;
+      replyingToMessage.value = null;
+    };
+    
+    // Fonction pour formater le contenu du message avec Markdown
+    const formatMessageContent = (content) => {
+      if (!content) return '';
+      
+      try {
+        // Remplacer les mentions d'utilisateurs par des balises HTML
+        let formattedContent = content.replace(/@([a-zA-Z0-9_-]+)/g, '<span class="mention-tag">@$1</span>');
+        
+        // Remplacer les mentions de canaux par des balises HTML
+        formattedContent = formattedContent.replace(/#([a-zA-Z0-9_-]+)/g, '<span class="canal-mention-tag" data-canal-name="$1">#$1</span>');
+        
+        // Utiliser la bibliothèque marked pour le formatage Markdown
+        const options = {
+          gfm: true,
+          breaks: true,
+          headerIds: false,
+          mangle: false,
+          sanitize: false,
+          silent: true
+        };
+        
+        // Prétraitement du texte pour s'assurer que les listes sont correctement formatées
+        let processedText = formattedContent.replace(/^([-*+])(\S)/gm, '$1 $2');
+        processedText = processedText.replace(/^(\d+\.)(\S)/gm, '$1 $2');
+        
+        // Convertir le Markdown en HTML et sanitiser
+        const html = marked.parse(processedText, options);
+        return DOMPurify.sanitize(html);
+      } catch (error) {
+        console.error('Erreur lors du formatage du message:', error);
+        return content;
+      }
+    };
     
     return {
       // Variables de base

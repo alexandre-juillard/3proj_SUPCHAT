@@ -5,6 +5,7 @@ import canal from './modules/canal'
 import message from './modules/message'
 import user from './modules/user'
 import messagePrivate from './modules/messagePrivate'
+import notification from './modules/notification'
 
 export default createStore({
   modules: {
@@ -13,6 +14,7 @@ export default createStore({
     canal,
     message,
     user,
-    messagePrivate
+    messagePrivate,
+    notification
   }
 })

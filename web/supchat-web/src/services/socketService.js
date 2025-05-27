@@ -108,27 +108,102 @@ class SocketService {
                 }
             });
             
-            // Écouter les notifications de mention
-            this.socket.on('nouvelle-mention', (data) => {
-                if (data && data.message) {
+            // Écouter les notifications de nouveau message
+            this.socket.on('notification:nouvelle', (data) => {
+                if (data) {
+                    console.log('Nouvelle notification reçue:', data);
+                    
+                    let notificationType, notificationReference;
+                    
+                    // Déterminer le type de notification (canal ou message privé)
+                    if (data.type === 'message-prive') {
+                        // Notification de message privé
+                        notificationType = 'conversation';
+                        notificationReference = data.expediteur;
+                        
+                        // Incrémenter le compteur de messages non lus pour cette conversation
+                        store.commit('notification/INCREMENTER_MESSAGES_NON_LUS_POUR_CONVERSATION', data.expediteur);
+                        
+                        // Mettre à jour la liste des conversations
+                        store.dispatch('messagePrivate/updateConversationList');
+                    } else {
+                        // Notification de canal classique
+                        notificationType = 'canal';
+                        notificationReference = data.canalId;
+                        
+                        // Incrémenter le compteur de messages non lus pour ce canal
+                        if (data.canalId) {
+                            store.commit('notification/INCREMENTER_MESSAGES_NON_LUS_POUR_CANAL', {
+                                canalId: data.canalId,
+                                count: 1
+                            });
+                        }
+                    }
+                    
+                    // Incrémenter le total des messages non lus
+                    store.commit('notification/INCREMENTER_TOTAL_MESSAGES_NON_LUS');
+                    
                     // Ajouter la notification au store
-                    setTimeout(() => {
-                        store.commit('notification/AJOUTER_NOTIFICATION', {
-                            type: 'mention',
-                            message: `Vous avez été mentionné dans un message`,
-                            data: data,
-                            lue: false,
-                            date: new Date()
+                    store.commit('notification/AJOUTER_NOTIFICATION', {
+                        _id: Date.now().toString(), // ID temporaire
+                        type: notificationType,
+                        reference: notificationReference,
+                        message: data.messageId,
+                        contenu: data.contenu,
+                        contenuType: data.estMention ? 'mention' : 'message',
+                        lu: false,
+                        date: new Date()
+                    });
+                    
+                    // Jouer le son de notification si activé
+                    store.dispatch('notification/jouerSonNotification', {
+                        estMention: data.estMention
+                    });
+                    
+                    // Afficher une notification visuelle si les notifications de bureau sont activées
+                    const preferences = store.state.notification.preferences;
+                    if (
+                        preferences.desktopEnabled && 
+                        (!preferences.mentionsOnly || data.estMention) && 
+                        'Notification' in window && 
+                        Notification.permission === 'granted'
+                    ) {
+                        const title = data.estMention ? 'Vous avez été mentionné' : 'Nouveau message';
+                        new Notification(title, {
+                            body: data.contenu,
+                            icon: '/favicon.ico'
                         });
-                    }, 0);
+                    }
+                }
+            });
+            
+            // Écouter les notifications de mention
+            this.socket.on('notification:mention', (data) => {
+                if (data) {
+                    console.log('Nouvelle mention reçue:', data);
+                    
+                    // Ajouter la notification au store
+                    store.commit('notification/AJOUTER_NOTIFICATION', {
+                        _id: Date.now().toString(), // ID temporaire
+                        type: 'canal',
+                        reference: data.canalId,
+                        message: data.messageId,
+                        contenu: data.contenu,
+                        contenuType: 'mention',
+                        lu: false,
+                        date: new Date()
+                    });
+                    
+                    // Jouer le son de mention
+                    store.dispatch('notification/jouerSonNotification', {
+                        estMention: true
+                    });
                     
                     // Afficher une notification visuelle
                     if ('Notification' in window && Notification.permission === 'granted') {
-                        const auteur = data.message.auteur ? data.message.auteur.username : 'Quelqu\'un';
-                        const canalNom = data.canal ? data.canal.nom : 'un canal';
-                        
-                        new Notification('Nouvelle mention', {
-                            body: `${auteur} vous a mentionné dans ${canalNom}`,
+                        const title = 'Vous avez été mentionné';
+                        new Notification(title, {
+                            body: data.contenu,
                             icon: '/favicon.ico'
                         });
                     }
@@ -220,6 +295,92 @@ class SocketService {
                     }, 0);
                 }
             });
+            
+            // Écouter les nouvelles notifications
+            this.socket.on('notification:nouvelle', (notification) => {
+                if (notification) {
+                    // Ajouter la notification au store
+                    setTimeout(() => {
+                        store.dispatch('notification/ajouterNotification', notification);
+                        
+                        // Incrémenter le compteur de messages non lus
+                        if (notification.type === 'canal' && notification.canalId) {
+                            store.dispatch('notification/incrementerMessagesNonLusCanal', {
+                                canalId: notification.canalId,
+                                workspaceId: notification.workspaceId
+                            });
+                        } else if (notification.type === 'conversation' || notification.type === 'message-prive') {
+                            store.dispatch('notification/incrementerMessagesNonLusConversation', notification.conversationId || notification.reference);
+                        }
+                    }, 0);
+                }
+            });
+            
+            // Écouter les notifications de mention
+            this.socket.on('notification:mention', (notification) => {
+                if (notification) {
+                    // Ajouter la notification au store avec un flag pour indiquer que c'est une mention
+                    setTimeout(() => {
+                        store.dispatch('notification/ajouterNotification', {
+                            ...notification,
+                            estMention: true
+                        });
+                    }, 0);
+                    
+                    // Afficher une notification visuelle pour les mentions
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        const title = notification.type === 'canal' ?
+                            `Mention dans #${notification.canalNom || 'un canal'}` :
+                            'Mention dans une conversation';
+                            
+                        const expediteur = notification.auteur || notification.expediteur ?
+                            (notification.auteur?.username || notification.expediteur?.username || 'Quelqu\'un') :
+                            'Quelqu\'un';
+                            
+                        new Notification(title, {
+                            body: `${expediteur} vous a mentionné: ${notification.contenu}`,
+                            icon: '/favicon.ico'
+                        });
+                    }
+                }
+            });
+            
+            // Écouter les notifications lues
+            this.socket.on('notification:lue', ({ notificationId }) => {
+                if (notificationId) {
+                    // Marquer la notification comme lue dans le store
+                    setTimeout(() => {
+                        store.commit('notification/MARQUER_NOTIFICATION_LUE', notificationId);
+                    }, 0);
+                }
+            });
+            
+            // Écouter les notifications toutes lues
+            this.socket.on('notification:toutes-lues', ({ canalId, conversationId, count }) => {
+                if (canalId) {
+                    // Réinitialiser le compteur de messages non lus pour ce canal
+                    setTimeout(() => {
+                        store.commit('notification/RESET_MESSAGES_NON_LUS_POUR_CANAL', canalId);
+                        store.commit('notification/DECREMENTER_TOTAL_MESSAGES_NON_LUS', count);
+                    }, 0);
+                } else if (conversationId) {
+                    // Réinitialiser le compteur de messages non lus pour cette conversation
+                    setTimeout(() => {
+                        store.commit('notification/RESET_MESSAGES_NON_LUS_POUR_CONVERSATION', conversationId);
+                        store.commit('notification/DECREMENTER_TOTAL_MESSAGES_NON_LUS', count);
+                    }, 0);
+                }
+            });
+            
+            // Écouter les mises à jour des préférences de notification
+            this.socket.on('notification:preferences-updated', (preferences) => {
+                if (preferences) {
+                    // Mettre à jour les préférences dans le store
+                    setTimeout(() => {
+                        store.commit('notification/SET_PREFERENCES', preferences);
+                    }, 0);
+                }
+            });
         });
     }
 
@@ -239,6 +400,38 @@ class SocketService {
         if (this.socket) {
             this.socket.disconnect();
             this.socket = null;
+        }
+    }
+    
+    // Méthodes pour les notifications
+    marquerNotificationLue(notificationId) {
+        if (this.socket) {
+            this.socket.emit('notification:marquer-lue', { notificationId });
+        }
+    }
+    
+    marquerToutesNotificationsCanal(canalId) {
+        if (this.socket) {
+            this.socket.emit('notification:marquer-toutes-lues-canal', { canalId });
+        }
+    }
+    
+    marquerToutesNotificationsConversation(conversationId) {
+        if (this.socket) {
+            this.socket.emit('notification:marquer-toutes-lues-conversation', { conversationId });
+        }
+    }
+    
+    // Méthodes pour les préférences de notification
+    updateNotificationPreferences(preferences) {
+        if (this.socket) {
+            this.socket.emit('notification:update-preferences', preferences);
+        }
+    }
+    
+    getNotificationPreferences() {
+        if (this.socket) {
+            this.socket.emit('notification:get-preferences');
         }
     }
 }

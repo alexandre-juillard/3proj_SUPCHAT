@@ -347,9 +347,9 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUpdated, nextTick, watch } from 'vue'
-import { useStore } from 'vuex'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, watch, nextTick, onUpdated } from 'vue';
+import { useStore } from 'vuex';
+import { useRoute } from 'vue-router';
 import * as marked from 'marked'
 import DOMPurify from 'dompurify'
 import FileUploader from './FileUploader.vue'
@@ -520,11 +520,18 @@ export default {
       
       // Marquer les messages non lus comme lus
       markUnreadMessagesAsRead();
+      
+      // Marquer les notifications comme lues lorsqu'on ouvre une conversation
+      if (props.userId) {
+        await store.dispatch('notification/marquerToutesNotificationsConversationLues', props.userId);
+      } else if (props.groupId) {
+        await store.dispatch('notification/marquerToutesNotificationsConversationLues', props.groupId);
+      }
     });
     
     // Surveiller les changements d'utilisateur pour recharger les messages
-    watch(userId, async (newUserId) => {
-      if (newUserId) {
+    watch(() => props.userId, async (newUserId, oldUserId) => {
+      if (newUserId && newUserId !== oldUserId) {
         loading.value = true;
         await store.dispatch('messagePrivate/fetchMessages', newUserId);
         loading.value = false;
@@ -532,6 +539,9 @@ export default {
         
         // Marquer les messages non lus comme lus
         markUnreadMessagesAsRead();
+        
+        // Marquer les notifications comme lues lorsqu'on change de conversation
+        await store.dispatch('notification/marquerToutesNotificationsConversationLues', newUserId);
       }
     });
     

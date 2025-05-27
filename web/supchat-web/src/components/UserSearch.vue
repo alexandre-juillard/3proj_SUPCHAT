@@ -46,12 +46,12 @@
       </v-list-item>
     </v-list>
     
-    <div v-else-if="searchQuery && !loading" class="no-results">
-      <p>Aucun utilisateur trouvé</p>
+    <div v-else-if="loading" class="loading">
+      <v-progress-circular indeterminate color="primary"></v-progress-circular>
     </div>
     
-    <div v-if="loading" class="loading">
-      <v-progress-circular indeterminate color="primary"></v-progress-circular>
+    <div v-else-if="searchQuery" class="no-results">
+      <p>Aucun utilisateur trouvé</p>
     </div>
   </div>
 </template>

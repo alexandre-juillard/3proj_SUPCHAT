@@ -41,6 +41,7 @@ yarn-error.log*
 # Database
 data/
 *.sqlite
+mongo-init.js
 
 # Temporary files
 *.tmp

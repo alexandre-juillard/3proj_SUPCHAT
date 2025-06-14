@@ -1,10 +1,28 @@
 version: '3.8'
 
 services:
+  # Service MongoDB
+  mongodb:
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=supchat
+      - MONGO_INITDB_ROOT_PASSWORD=supchatpassword
+      - MONGO_INITDB_DATABASE=supchat
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - supchat-network
+
   api:
     build: 
       context: ./api
       dockerfile: Dockerfile
+    depends_on:
+      - mongodb
     ports:
       - "3000:3000"
     environment:
@@ -13,6 +31,7 @@ services:
       - JWT_EXPIRES_IN=24h
       - FRONTEND_URL=http://localhost:3001
       - API_URL=http://localhost:3000
+      - MONGODB_URI=mongodb://supchat:supchatpassword@mongodb:27017/supchat
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
@@ -52,9 +71,33 @@ services:
     networks:
       - supchat-network
 
+  mongo-express:
+    image: mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=supchat
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=supchatpassword
+      # URL de connexion complète
+      - ME_CONFIG_MONGODB_URL=mongodb://supchat:supchatpassword@mongodb:27017/supchat
+      # Authentification basique (optionnelle)
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=pass
+      # Désactiver l'authentification pour le développement
+      - ME_CONFIG_MONGODB_AUTH_USERNAME=
+      - ME_CONFIG_MONGODB_AUTH_PASSWORD=
+      - ME_CONFIG_OPTIONS_EDITORTHEME=ambiance
+    depends_on:
+      - mongodb
+    networks:
+      - supchat-network
+
 networks:
   supchat-network:
     driver: bridge
 
 volumes:
   uploads:
+  mongodb_data:

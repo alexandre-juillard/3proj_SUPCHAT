@@ -1,5 +1,6 @@
-// Importer file-type avec gestion de sa syntaxe
+// Importer file-type
 const fileType = require('file-type');
+
 // Utiliser la bonne méthode selon celle qui est disponible
 const detectFileType = async (buffer) => {
     if (fileType.fromBuffer) {
@@ -109,7 +110,7 @@ const verifierFichier = async (buffer, nomFichier, taille) => {
         console.log(`Vérification du fichier: ${nomFichier}, taille: ${taille} octets`);
         
         // Détecter le vrai type MIME à partir du contenu
-        const typeDetecte = await detectFileType(buffer);
+        const typeDetecte = await fileType.fromBuffer(buffer);
         
         // Si le type n'est pas détecté, utiliser le type basé sur l'extension
         if (!typeDetecte) {

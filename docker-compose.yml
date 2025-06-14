@@ -26,7 +26,9 @@ services:
       - 8.8.4.4
     restart: unless-stopped
     volumes:
+      # Monter le code source mais avec accès en écriture
       - ./api:/app
+      # Utiliser un volume anonyme pour node_modules du conteneur
       - /app/node_modules
       - uploads:/uploads
     networks:
